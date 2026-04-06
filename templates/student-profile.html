@@ -1,0 +1,1115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>My Profile — Deline Got'ine Government Student Portal</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; }
+    body { background: #e8e8e8; padding: 20px; }
+
+    /* ── Modal ── */
+    .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 100; align-items: center; justify-content: center; }
+    .modal-overlay.open { display: flex; }
+    .modal { background: #fff; border-radius: 4px; width: 400px; max-height: 88vh; overflow-y: auto; padding: 22px 24px; position: relative; box-shadow: 0 8px 32px rgba(0,0,0,0.2); }
+    .modal.wide { width: 500px; }
+    .modal-close { position: absolute; top: 12px; right: 14px; background: none; border: none; font-size: 14px; cursor: pointer; color: #888; }
+    .modal-close:hover { color: #111; }
+    .modal h3 { font-size: 14px; font-weight: 600; color: #111; margin-bottom: 3px; }
+    .modal-sub { font-size: 10px; color: #888; margin-bottom: 14px; line-height: 1.5; }
+    .modal-field { margin-bottom: 11px; }
+    .modal-label { font-size: 9.5px; font-weight: 600; color: #333; letter-spacing: 0.05em; text-transform: uppercase; margin-bottom: 4px; display: block; }
+    .modal-input, .modal-select, .modal-textarea { width: 100%; padding: 8px 9px; border: 1px solid #ccc; border-radius: 3px; font-size: 11.5px; color: #333; outline: none; font-family: inherit; background: #fff; }
+    .modal-input:focus, .modal-select:focus, .modal-textarea:focus { border-color: #555; }
+    .modal-textarea { resize: vertical; min-height: 52px; }
+    .modal-select { appearance: none; }
+    .modal-btn { width: 100%; padding: 9px; background: #1a1a1a; color: #fff; border: none; border-radius: 3px; font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; cursor: pointer; font-family: inherit; margin-top: 6px; }
+    .modal-btn:hover { background: #333; }
+    .modal-section-head { font-size: 8.5px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: #999; border-bottom: 1px solid #eee; padding-bottom: 4px; margin: 14px 0 10px; }
+    .required { color: #cc0000; }
+    .sensitivity-note { font-size: 9px; color: #888; background: #f7f7f7; border: 1px solid #e8e8e8; border-radius: 3px; padding: 6px 9px; margin-bottom: 10px; line-height: 1.5; }
+    .sensitivity-high   { border-left: 3px solid #e65100; }
+    .sensitivity-extreme{ border-left: 3px solid #cc3333; }
+    .sensitivity-sensitive{ border-left: 3px solid #856404; }
+    .modal-row { display: flex; gap: 10px; }
+    .modal-row .modal-field { flex: 1; }
+
+    /* ── Hover ── */
+    .sidebar-item-link:hover { background: #222 !important; color: #fff !important; }
+    .edit-btn:hover { border-color: #333 !important; color: #111 !important; }
+    .section-edit-btn:hover { background: #1a1a1a !important; color: #fff !important; }
+
+    /* ── Profile-specific ── */
+    .profile-section { background: #fff; border: 1px solid #e0e0e0; border-radius: 4px; margin-bottom: 14px; overflow: hidden; }
+    .profile-section-header { background: #f5f5f5; border-bottom: 1px solid #e0e0e0; padding: 10px 16px; display: flex; align-items: center; justify-content: space-between; }
+    .profile-section-title { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #555; }
+    .section-edit-btn { background: #fff; color: #333; border: 1px solid #ccc; border-radius: 2px; font-size: 9px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; padding: 4px 10px; cursor: pointer; font-family: inherit; }
+
+    .profile-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 0; }
+    .profile-field { padding: 11px 16px; border-bottom: 1px solid #f5f5f5; border-right: 1px solid #f5f5f5; }
+    .profile-field:nth-child(3n) { border-right: none; }
+    .profile-field.full { grid-column: 1/-1; border-right: none; }
+    .profile-field.half { grid-column: span 2; }
+    .p-label { font-size: 8.5px; color: #aaa; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 3px; }
+    .p-val { font-size: 11.5px; color: #111; font-weight: 500; line-height: 1.4; }
+    .p-val.muted { color: #bbb; font-style: italic; font-weight: 400; }
+    .p-val.verified { color: #1a6b3a; }
+    .p-val.pending  { color: #856404; }
+    .p-val.sensitive { color: #e65100; }
+
+    .verify-badge { display: inline-flex; align-items: center; gap: 4px; font-size: 8px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; border-radius: 2px; padding: 2px 6px; margin-left: 6px; }
+    .vb-verified { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+    .vb-pending  { background: #fff3cd; color: #856404; border: 1px solid #ffc107; }
+    .vb-not-set  { background: #f5f5f5; color: #999; border: 1px solid #e0e0e0; }
+    .vb-high     { background: #fff3e0; color: #b35900; border: 1px solid #ffcc80; }
+
+    .sensitivity-tag { display: inline-block; font-size: 7.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; border-radius: 2px; padding: 1px 5px; margin-bottom: 3px; }
+    .st-standard  { background: #f0f0f0; color: #777; border: 1px solid #ddd; }
+    .st-high      { background: #fff3e0; color: #b35900; border: 1px solid #ffcc80; }
+    .st-sensitive { background: #fff3cd; color: #856404; border: 1px solid #ffc107; }
+    .st-extreme   { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+
+    /* Completeness bar */
+    .completeness-wrap { background: #fff; border: 1px solid #e0e0e0; border-radius: 4px; padding: 14px 16px; margin-bottom: 14px; }
+    .completeness-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+    .completeness-label { font-size: 10px; font-weight: 600; color: #333; }
+    .completeness-pct { font-size: 13px; font-weight: 700; color: #1a6b3a; }
+    .bar-track { background: #eee; border-radius: 4px; height: 6px; overflow: hidden; }
+    .bar-fill { background: #1a6b3a; height: 100%; border-radius: 4px; transition: width 0.4s; }
+    .bar-fill.amber { background: #e65100; }
+    .completeness-items { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+    .ci { font-size: 9px; padding: 2px 8px; border-radius: 2px; font-weight: 600; }
+    .ci.done    { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+    .ci.missing { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+    .ci.partial { background: #fff3cd; color: #856404; border: 1px solid #ffc107; }
+
+    /* Document list */
+    .doc-row { display: flex; align-items: center; justify-content: space-between; padding: 8px 16px; border-bottom: 1px solid #f5f5f5; }
+    .doc-row:last-child { border-bottom: none; }
+    .doc-icon { font-size: 13px; margin-right: 8px; }
+    .doc-name { font-size: 11px; color: #333; font-weight: 500; }
+    .doc-meta { font-size: 9px; color: #aaa; margin-top: 1px; }
+    .doc-badge { font-size: 8px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; border-radius: 2px; padding: 2px 7px; }
+    .db-verified { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+    .db-pending  { background: #fff3cd; color: #856404; border: 1px solid #ffc107; }
+    .db-required { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+    .db-uploaded { background: #e8eaff; color: #3a4aaa; border: 1px solid #a0a8f0; }
+    .doc-actions { display: flex; align-items: center; gap: 8px; }
+    .doc-btn { background: none; border: 1px solid #ccc; border-radius: 2px; font-size: 9px; color: #555; padding: 3px 8px; cursor: pointer; font-family: inherit; }
+    .doc-btn:hover { border-color: #333; color: #111; }
+
+    /* Banking masked */
+    .bank-masked { font-family: monospace; font-size: 12px; letter-spacing: 0.08em; color: #333; }
+
+    /* Alert box */
+    .alert-box { background: #fff8f0; border: 1px solid #ffcc80; border-radius: 3px; padding: 9px 12px; margin-bottom: 14px; font-size: 10px; color: #7a4a00; line-height: 1.6; }
+    .alert-box.info { background: #f0f4ff; border-color: #c0ccf0; color: #3a4aaa; }
+
+    @media print {
+      * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+      body { background: #fff !important; padding: 0 !important; }
+      .modal-overlay { display: none !important; }
+      .section-edit-btn, .doc-btn { display: none !important; }
+    }
+  </style>
+</head>
+<body>
+
+<table width="100%" cellpadding="0" cellspacing="0" border="0"
+       style="max-width:880px;margin:0 auto;background:#fff;border-radius:8px;
+              box-shadow:0 4px 24px rgba(0,0,0,0.18);overflow:hidden;border-collapse:collapse;">
+
+  <!-- Browser bar -->
+  <tr>
+    <td colspan="2" style="background:#f0f0f0;border-bottom:1px solid #d0d0d0;padding:8px 12px;">
+      <table cellpadding="0" cellspacing="0" border="0" width="100%"><tr>
+        <td width="60" style="vertical-align:middle;">
+          <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#c8c8c8;margin-right:4px;"></span>
+          <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#c8c8c8;margin-right:4px;"></span>
+          <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#c8c8c8;"></span>
+        </td>
+        <td style="background:#fff;border:1px solid #d0d0d0;border-radius:4px;padding:3px 10px;font-size:11px;color:#555;">portal.deline.ca/profile</td>
+      </tr></table>
+    </td>
+  </tr>
+
+  <!-- Top nav -->
+  <tr>
+    <td colspan="2" style="background:#fff;border-bottom:1px solid #e0e0e0;padding:8px 20px;">
+      <table cellpadding="0" cellspacing="0" border="0" width="100%"><tr>
+        <td style="font-size:11px;font-weight:700;color:#111;">Deline Got'ine Government — Student Portal</td>
+        <td align="right" style="font-size:10px;color:#666;">
+          <span style="margin-left:16px;cursor:pointer;">Home</span>
+          <span style="margin-left:16px;cursor:pointer;">Status</span>
+          <span style="margin-left:16px;cursor:pointer;">Deadlines</span>
+          <span style="margin-left:16px;cursor:pointer;color:#111;font-weight:600;border-bottom:2px solid #1a1a1a;padding-bottom:2px;">My Profile</span>
+        </td>
+      </tr></table>
+    </td>
+  </tr>
+
+  <!-- Shell: sidebar + main -->
+  <tr>
+
+    <!-- ══ SIDEBAR ══ -->
+    <td width="168" valign="top" bgcolor="#1a1a1a"
+        style="width:168px;background-color:#1a1a1a;vertical-align:top;padding:0;">
+      <table cellpadding="0" cellspacing="0" border="0" width="100%">
+        <tr><td style="padding:14px 14px 10px;border-bottom:1px solid #2a2a2a;">
+          <div style="font-size:11px;font-weight:600;color:#fff;">Marie B.</div>
+          <div style="font-size:9px;color:#888;margin-top:2px;">New Student</div>
+        </td></tr>
+        <tr><td style="padding:8px 14px 2px;font-size:8px;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;color:#555;">Main</td></tr>
+        <tr><td class="sidebar-item-link" onclick="window.location='student-dashboard-full.html'" style="padding:6px 14px;font-size:10px;color:#aaa;border-left:2px solid transparent;cursor:pointer;">&#9632; Dashboard</td></tr>
+        <tr><td class="sidebar-item-link" onclick="window.location='student-dashboard-full.html'" style="padding:6px 14px;font-size:10px;color:#aaa;border-left:2px solid transparent;cursor:pointer;">My Applications</td></tr>
+        <tr><td class="sidebar-item-link" onclick="window.location='student-dashboard-full.html'" style="padding:6px 14px;font-size:10px;color:#aaa;border-left:2px solid transparent;cursor:pointer;">My Documents</td></tr>
+        <tr><td bgcolor="#222222" style="background:#222;border-left:2px solid #fff;padding:6px 14px;font-size:10px;color:#fff;font-weight:600;">My Profile</td></tr>
+        <tr><td style="height:1px;background:#2a2a2a;font-size:0;">&nbsp;</td></tr>
+        <tr><td style="padding:8px 14px 2px;font-size:8px;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;color:#555;">Applications</td></tr>
+        <tr><td class="sidebar-item-link" onclick="window.location='form-a-b.html'" style="padding:6px 14px;font-size:10px;color:#aaa;cursor:pointer;">Form A — New Student</td></tr>
+        <tr><td class="sidebar-item-link" onclick="window.location='form-c-continuing.html'" style="padding:6px 14px;font-size:10px;color:#aaa;cursor:pointer;">Form C — Continuing</td></tr>
+        <tr><td class="sidebar-item-link" onclick="window.location='form-d-change-info.html'" style="padding:6px 14px;font-size:10px;color:#aaa;cursor:pointer;">Form D — Change of Info</td></tr>
+        <tr><td style="height:1px;background:#2a2a2a;font-size:0;">&nbsp;</td></tr>
+        <tr><td style="padding:8px 14px 2px;font-size:8px;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;color:#555;">Claims</td></tr>
+        <tr><td class="sidebar-item-link" onclick="window.location='form-e-travel.html'" style="padding:6px 14px;font-size:10px;color:#aaa;cursor:pointer;">Form E — Travel Claim</td></tr>
+        <tr><td class="sidebar-item-link" onclick="window.location='form-f-practicum.html'" style="padding:6px 14px;font-size:10px;color:#aaa;cursor:pointer;">Form F — Practicum</td></tr>
+        <tr><td class="sidebar-item-link" onclick="window.location='form-g-graduation.html'" style="padding:6px 14px;font-size:10px;color:#aaa;cursor:pointer;">Form G — Graduation</td></tr>
+        <tr><td class="sidebar-item-link" onclick="window.location='form-scholarship.html'" style="padding:6px 14px;font-size:10px;color:#aaa;cursor:pointer;">Academic Scholarship</td></tr>
+        <tr><td class="sidebar-item-link" onclick="window.location='form-hardship.html'" style="padding:6px 14px;font-size:10px;color:#aaa;cursor:pointer;">Hardship Bursary</td></tr>
+        <tr><td style="height:1px;background:#2a2a2a;font-size:0;">&nbsp;</td></tr>
+        <tr><td style="padding:8px 14px 2px;font-size:8px;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;color:#555;">Other</td></tr>
+        <tr><td class="sidebar-item-link" onclick="window.location='student-dashboard-full.html'" style="padding:6px 14px;font-size:10px;color:#aaa;cursor:pointer;">Notifications</td></tr>
+        <tr><td class="sidebar-item-link" onclick="window.location='student-dashboard-full.html'" style="padding:6px 14px;font-size:10px;color:#aaa;cursor:pointer;">Help &amp; FAQ</td></tr>
+        <tr><td class="sidebar-item-link" onclick="window.location='form-h-appeal.html'" style="padding:6px 14px;font-size:10px;color:#aaa;cursor:pointer;">Form H — Appeal</td></tr>
+        <tr><td class="sidebar-item-link" onclick="window.location='signin.html'" style="padding:6px 14px;font-size:10px;color:#aaa;cursor:pointer;">Sign Out</td></tr>
+      </table>
+    </td>
+
+    <!-- ══ MAIN ══ -->
+    <td valign="top" style="background:#f7f7f7;vertical-align:top;padding:0;">
+
+      <!-- Topbar -->
+      <table cellpadding="0" cellspacing="0" border="0" width="100%">
+        <tr><td style="background:#fff;border-bottom:1px solid #e8e8e8;padding:10px 20px;">
+          <table cellpadding="0" cellspacing="0" border="0" width="100%"><tr>
+            <td style="font-size:13px;font-weight:700;color:#111;text-transform:uppercase;letter-spacing:0.02em;">My Profile</td>
+            <td align="right" style="font-size:9px;color:#888;">Your information is encrypted and only accessible to authorised DGG staff.</td>
+          </tr></table>
+        </td></tr>
+      </table>
+
+      <div style="padding:16px 20px;">
+
+        <!-- Profile completeness -->
+        <div class="completeness-wrap">
+          <div class="completeness-header">
+            <div class="completeness-label">Profile Completeness</div>
+            <div class="completeness-pct" id="pctLabel">65%</div>
+          </div>
+          <div class="bar-track"><div class="bar-fill amber" id="pctBar" style="width:65%;"></div></div>
+          <div class="completeness-items" style="margin-top:10px;">
+            <span class="ci done">✓ Personal Info</span>
+            <span class="ci done">✓ Eligibility IDs</span>
+            <span class="ci missing">✕ Banking Details</span>
+            <span class="ci partial">⚑ Documents (2 pending)</span>
+            <span class="ci done">✓ Enrollment Info</span>
+            <span class="ci missing">✕ Void Cheque</span>
+          </div>
+        </div>
+
+        <!-- Alert: banking missing -->
+        <div class="alert-box">
+          <strong>Action required:</strong> Your banking details are incomplete. Payments cannot be processed until a void cheque is uploaded and banking information is verified.
+          <span onclick="openModal('banking')" style="color:#e65100;font-weight:600;cursor:pointer;margin-left:6px;text-decoration:underline;">Add Banking Info →</span>
+        </div>
+
+        <!-- ── 1. PERSONAL INFORMATION ── -->
+        <div class="profile-section">
+          <div class="profile-section-header">
+            <div>
+              <div class="profile-section-title">Personal Information</div>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <span class="sensitivity-tag st-standard">Standard Sensitivity</span>
+              <button class="section-edit-btn" onclick="openModal('personal')">Edit</button>
+            </div>
+          </div>
+          <div class="profile-grid" id="personal-display">
+            <div class="profile-field">
+              <div class="p-label">Legal First Name</div>
+              <div class="p-val" id="disp-firstname">Marie</div>
+            </div>
+            <div class="profile-field">
+              <div class="p-label">Legal Last Name</div>
+              <div class="p-val" id="disp-lastname">Beaulieu</div>
+            </div>
+            <div class="profile-field">
+              <div class="p-label">Preferred Name</div>
+              <div class="p-val muted" id="disp-preferred">—</div>
+            </div>
+            <div class="profile-field">
+              <div class="p-label">Date of Birth</div>
+              <div class="p-val" id="disp-dob">1998 / 04 / 12</div>
+            </div>
+            <div class="profile-field">
+              <div class="p-label">Gender</div>
+              <div class="p-val" id="disp-gender">Female</div>
+            </div>
+            <div class="profile-field">
+              <div class="p-label">Pronouns</div>
+              <div class="p-val muted" id="disp-pronouns">She / Her</div>
+            </div>
+            <div class="profile-field">
+              <div class="p-label">Phone Number</div>
+              <div class="p-val" id="disp-phone">867-555-0199</div>
+            </div>
+            <div class="profile-field">
+              <div class="p-label">Email Address</div>
+              <div class="p-val" id="disp-email">marie.b@email.com</div>
+            </div>
+            <div class="profile-field">
+              <div class="p-label">Alternate Phone</div>
+              <div class="p-val muted" id="disp-altphone">—</div>
+            </div>
+            <div class="profile-field full">
+              <div class="p-label">Mailing Address</div>
+              <div class="p-val" id="disp-address">PO Box 47, Deline, NT X0E 0G0</div>
+            </div>
+            <div class="profile-field">
+              <div class="p-label">Number of Dependents</div>
+              <div class="p-val" id="disp-deps">2 <span style="font-size:9.5px;color:#888;">(affects living allowance)</span></div>
+            </div>
+            <div class="profile-field">
+              <div class="p-label">Dependent Ages</div>
+              <div class="p-val" id="disp-dep-ages">3 yr, 6 yr</div>
+            </div>
+            <div class="profile-field">
+              <div class="p-label">Disability Accommodation</div>
+              <div class="p-val" id="disp-disability">None declared <span class="sensitivity-tag st-sensitive" style="margin-left:4px;">Sensitive</span></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── 2. ELIGIBILITY IDENTIFIERS ── -->
+        <div class="profile-section">
+          <div class="profile-section-header">
+            <div>
+              <div class="profile-section-title">Eligibility Identifiers</div>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <span class="sensitivity-tag st-high">High Sensitivity</span>
+              <button class="section-edit-btn" onclick="openModal('eligibility')">Edit</button>
+            </div>
+          </div>
+          <div style="padding:9px 16px;background:#fff8f0;border-bottom:1px solid #ffe8cc;font-size:9.5px;color:#7a4a00;line-height:1.5;">
+            These fields are verified by DGG staff against official registries. Do not alter them without uploading supporting documentation. Changes trigger a re-verification flag.
+          </div>
+          <div class="profile-grid">
+            <div class="profile-field">
+              <div class="p-label">Deline Beneficiary #
+                <span class="vb-verified verify-badge">✓ Verified</span>
+              </div>
+              <div class="p-val" id="disp-ben">DGG-00412</div>
+              <div style="font-size:8.5px;color:#888;margin-top:2px;">Confirms DGGR eligibility · verified against Beneficiary Registry</div>
+            </div>
+            <div class="profile-field">
+              <div class="p-label">Indian Status / Treaty #
+                <span class="vb-verified verify-badge">✓ Verified</span>
+              </div>
+              <div class="p-val" id="disp-status">SCN 123456789</div>
+              <div style="font-size:8.5px;color:#888;margin-top:2px;">Confirms C-DFN eligibility · verified against Status Card</div>
+            </div>
+            <div class="profile-field">
+              <div class="p-label">Primary Funding Source</div>
+              <div class="p-val" id="disp-funding-source">C-DFN PSSSP + DGGR</div>
+              <div style="font-size:8.5px;color:#888;margin-top:2px;">Determines C-DFN component eligibility</div>
+            </div>
+            <div class="profile-field half">
+              <div class="p-label">
+                Unique Personal Identifier (UPI)
+                <span class="sensitivity-tag st-extreme" style="margin-left:4px;">Extreme Sensitivity</span>
+              </div>
+              <div style="font-size:9px;color:#cc3333;line-height:1.5;margin-top:2px;">
+                🔒 For duplicate-profile detection only. Not used for tax or any other purpose. Displayed only to you and the Privacy Officer.
+              </div>
+              <div class="p-val sensitive" style="margin-top:4px;font-family:monospace;letter-spacing:0.06em;" id="disp-upi">
+                <span id="upi-masked">●●●●●●●●●●</span>
+                <button onclick="toggleUPI()" style="background:none;border:1px solid #ccc;border-radius:2px;font-size:9px;color:#666;padding:2px 7px;cursor:pointer;font-family:inherit;margin-left:8px;" id="upi-toggle-btn">Reveal</button>
+              </div>
+            </div>
+            <div class="profile-field">
+              <div class="p-label">SFA (Student Financial Assistance)</div>
+              <div class="p-val" id="disp-sfa">Not receiving SFA</div>
+              <div style="font-size:8.5px;color:#888;margin-top:2px;">Affects C-DFN tuition &amp; living eligibility</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── 3. BANKING DETAILS ── -->
+        <div class="profile-section">
+          <div class="profile-section-header">
+            <div>
+              <div class="profile-section-title">Banking &amp; Payment Details</div>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <span class="sensitivity-tag st-high">High Sensitivity</span>
+              <span class="vb-pending verify-badge">⚑ Incomplete</span>
+              <button class="section-edit-btn" onclick="openModal('banking')">Add / Update</button>
+            </div>
+          </div>
+          <div style="padding:9px 16px;background:#fff8f0;border-bottom:1px solid #ffe8cc;font-size:9.5px;color:#7a4a00;line-height:1.5;">
+            All payments are by direct deposit only. A void cheque is required for verification. Banking details are encrypted and never shared with third parties.
+          </div>
+          <div class="profile-grid" id="banking-display">
+            <div class="profile-field">
+              <div class="p-label">Financial Institution</div>
+              <div class="p-val muted" id="disp-bank-name">Not entered</div>
+            </div>
+            <div class="profile-field">
+              <div class="p-label">Account Holder Name</div>
+              <div class="p-val muted" id="disp-bank-holder">Not entered</div>
+            </div>
+            <div class="profile-field">
+              <div class="p-label">Account Type</div>
+              <div class="p-val muted" id="disp-bank-type">Not entered</div>
+            </div>
+            <div class="profile-field">
+              <div class="p-label">Transit Number (5 digits)</div>
+              <div class="bank-masked p-val muted" id="disp-transit">— — —</div>
+            </div>
+            <div class="profile-field">
+              <div class="p-label">Institution Number (3 digits)</div>
+              <div class="bank-masked p-val muted" id="disp-institution-num">— — —</div>
+            </div>
+            <div class="profile-field">
+              <div class="p-label">Account Number</div>
+              <div class="bank-masked p-val muted" id="disp-account-num">— — — — — — —</div>
+            </div>
+            <div class="profile-field full">
+              <div class="p-label">Void Cheque</div>
+              <div style="display:flex;align-items:center;gap:10px;margin-top:2px;">
+                <span class="doc-badge db-required" id="cheque-badge">Required</span>
+                <span style="font-size:10px;color:#888;" id="cheque-filename">No file uploaded</span>
+                <button onclick="openModal('banking')" style="background:none;border:1px solid #e65100;border-radius:2px;font-size:9px;color:#e65100;padding:3px 8px;cursor:pointer;font-family:inherit;font-weight:600;">Upload Void Cheque</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── 4. ENROLLMENT INFORMATION ── -->
+        <div class="profile-section">
+          <div class="profile-section-header">
+            <div>
+              <div class="profile-section-title">Enrollment Information</div>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <span class="sensitivity-tag st-standard">Standard Sensitivity</span>
+              <button class="section-edit-btn" onclick="openModal('enrollment')">Edit</button>
+            </div>
+          </div>
+          <div style="padding:9px 16px;background:#f0f4ff;border-bottom:1px solid #c0ccf0;font-size:9.5px;color:#3a4aaa;line-height:1.5;">
+            Enrollment details from your institution (confirmed via Form B) drive eligibility decisions and payment calculations. Update this whenever your enrollment status changes.
+          </div>
+          <div class="profile-grid">
+            <div class="profile-field">
+              <div class="p-label">Institution</div>
+              <div class="p-val" id="disp-institution">University of Calgary</div>
+            </div>
+            <div class="profile-field">
+              <div class="p-label">Program / Credential</div>
+              <div class="p-val" id="disp-program">Bachelor of Nursing Science — Year 2</div>
+            </div>
+            <div class="profile-field">
+              <div class="p-label">Current Semester</div>
+              <div class="p-val" id="disp-semester">Fall 2025</div>
+            </div>
+            <div class="profile-field">
+              <div class="p-label">Enrollment Status</div>
+              <div class="p-val verified" id="disp-enroll-status">Full-Time <span class="vb-verified verify-badge">✓ Form B</span></div>
+            </div>
+            <div class="profile-field">
+              <div class="p-label">Course Load %</div>
+              <div class="p-val" id="disp-courseload">100% <span style="font-size:9px;color:#888;">(confirmed by institution)</span></div>
+            </div>
+            <div class="profile-field">
+              <div class="p-label">Program Type</div>
+              <div class="p-val" id="disp-progtype">Post-Secondary (non-upgrading)</div>
+            </div>
+            <div class="profile-field">
+              <div class="p-label">Expected Graduation</div>
+              <div class="p-val" id="disp-grad-date">April 2027</div>
+            </div>
+            <div class="profile-field">
+              <div class="p-label">Semester Start Date</div>
+              <div class="p-val" id="disp-sem-start">2025 / 09 / 01</div>
+            </div>
+            <div class="profile-field">
+              <div class="p-label">Semester End Date</div>
+              <div class="p-val" id="disp-sem-end">2025 / 12 / 15</div>
+            </div>
+            <div class="profile-field">
+              <div class="p-label">Institution Location</div>
+              <div class="p-val" id="disp-inst-loc">Calgary, AB <span style="font-size:9px;color:#888;">(893 km from Deline)</span></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── 5. DOCUMENTS ── -->
+        <div class="profile-section">
+          <div class="profile-section-header">
+            <div>
+              <div class="profile-section-title">Documents &amp; Uploads</div>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <span class="sensitivity-tag st-sensitive">Sensitive</span>
+              <button class="section-edit-btn" onclick="openModal('upload')">Upload Document</button>
+            </div>
+          </div>
+          <div style="padding:9px 16px;background:#f7f7f7;border-bottom:1px solid #eee;font-size:9.5px;color:#666;line-height:1.5;">
+            Uploaded documents support eligibility verification and award claims. Staff will review and mark each document as Verified. Keep files under 10MB (PDF, JPG, PNG).
+          </div>
+
+          <!-- Document rows -->
+          <div class="doc-row">
+            <div style="display:flex;align-items:center;">
+              <span class="doc-icon">📄</span>
+              <div>
+                <div class="doc-name">Indian Status Card — Front &amp; Back</div>
+                <div class="doc-meta">Required for C-DFN eligibility · Uploaded Mar 3, 2025</div>
+              </div>
+            </div>
+            <div class="doc-actions">
+              <span class="doc-badge db-verified">✓ Verified</span>
+              <button class="doc-btn">View</button>
+            </div>
+          </div>
+
+          <div class="doc-row">
+            <div style="display:flex;align-items:center;">
+              <span class="doc-icon">📄</span>
+              <div>
+                <div class="doc-name">Acceptance Letter — University of Calgary</div>
+                <div class="doc-meta">Required for enrollment confirmation · Uploaded Mar 3, 2025</div>
+              </div>
+            </div>
+            <div class="doc-actions">
+              <span class="doc-badge db-verified">✓ Verified</span>
+              <button class="doc-btn">View</button>
+            </div>
+          </div>
+
+          <div class="doc-row">
+            <div style="display:flex;align-items:center;">
+              <span class="doc-icon">📋</span>
+              <div>
+                <div class="doc-name">Form B — Enrollment Verification (Fall 2025)</div>
+                <div class="doc-meta">Sent to registrar Mar 3 · Full-time status confirmed</div>
+              </div>
+            </div>
+            <div class="doc-actions">
+              <span class="doc-badge db-verified">✓ Received</span>
+              <button class="doc-btn">View</button>
+            </div>
+          </div>
+
+          <div class="doc-row">
+            <div style="display:flex;align-items:center;">
+              <span class="doc-icon">🏦</span>
+              <div>
+                <div class="doc-name">Void Cheque — Banking Verification</div>
+                <div class="doc-meta">Required before payments can be processed</div>
+              </div>
+            </div>
+            <div class="doc-actions">
+              <span class="doc-badge db-required">Required</span>
+              <button class="doc-btn" onclick="openModal('banking')">Upload</button>
+            </div>
+          </div>
+
+          <div class="doc-row">
+            <div style="display:flex;align-items:center;">
+              <span class="doc-icon">📄</span>
+              <div>
+                <div class="doc-name">Deline Beneficiary Registry Confirmation</div>
+                <div class="doc-meta">Required for DGGR eligibility · Uploaded Mar 3, 2025</div>
+              </div>
+            </div>
+            <div class="doc-actions">
+              <span class="doc-badge db-uploaded">Uploaded — Pending Review</span>
+              <button class="doc-btn">View</button>
+            </div>
+          </div>
+
+          <div class="doc-row">
+            <div style="display:flex;align-items:center;">
+              <span class="doc-icon">📁</span>
+              <div>
+                <div class="doc-name">Disability Accommodation Documentation</div>
+                <div class="doc-meta">Optional — required only if requesting adjusted FT threshold</div>
+              </div>
+            </div>
+            <div class="doc-actions">
+              <span class="doc-badge db-pending">Not Required</span>
+              <button class="doc-btn" onclick="openModal('upload')">Upload if Needed</button>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Privacy notice -->
+        <div class="alert-box info" style="margin-bottom:0;">
+          🔒 <strong>Privacy:</strong> Your personal information is collected under the authority of the Deline Got'ine Government Post-Secondary Funding Policy and used solely for processing your funding application. Information is shared only with authorised DGG staff involved in your file. For questions, contact the Privacy Officer.
+        </div>
+
+      </div>
+    </td>
+  </tr>
+</table>
+
+<!-- ══════════════ MODALS ══════════════ -->
+
+<!-- Edit Personal Info -->
+<div class="modal-overlay" id="modal-personal">
+  <div class="modal wide">
+    <button class="modal-close" onclick="closeModal('personal')">✕</button>
+    <h3>Edit Personal Information</h3>
+    <div class="modal-sub">Standard sensitivity · Used for identity and communication.</div>
+
+    <div class="modal-section-head">Name</div>
+    <div class="modal-row">
+      <div class="modal-field"><label class="modal-label">Legal First Name <span class="required">*</span></label><input class="modal-input" id="in-firstname" type="text" placeholder="As on government ID"/></div>
+      <div class="modal-field"><label class="modal-label">Legal Last Name <span class="required">*</span></label><input class="modal-input" id="in-lastname" type="text" placeholder="As on government ID"/></div>
+    </div>
+    <div class="modal-row">
+      <div class="modal-field"><label class="modal-label">Preferred / Nickname</label><input class="modal-input" id="in-preferred" type="text" placeholder="Optional"/></div>
+      <div class="modal-field"><label class="modal-label">Pronouns</label><input class="modal-input" id="in-pronouns" type="text" placeholder="e.g. She/Her, They/Them"/></div>
+    </div>
+
+    <div class="modal-section-head">Date of Birth &amp; Identity</div>
+    <div class="modal-row">
+      <div class="modal-field"><label class="modal-label">Date of Birth <span class="required">*</span></label><input class="modal-input" id="in-dob" type="text" placeholder="YYYY/MM/DD"/></div>
+      <div class="modal-field"><label class="modal-label">Gender</label><select class="modal-select" id="in-gender"><option value="" disabled selected>Select</option><option>Female</option><option>Male</option><option>Non-binary</option><option>Prefer not to say</option></select></div>
+    </div>
+
+    <div class="modal-section-head">Contact</div>
+    <div class="modal-row">
+      <div class="modal-field"><label class="modal-label">Phone <span class="required">*</span></label><input class="modal-input" id="in-phone" type="tel" placeholder="(867) 000-0000"/></div>
+      <div class="modal-field"><label class="modal-label">Alternate Phone</label><input class="modal-input" id="in-altphone" type="tel" placeholder="Optional"/></div>
+    </div>
+    <div class="modal-field"><label class="modal-label">Email Address <span class="required">*</span></label><input class="modal-input" id="in-email" type="email" placeholder="your@email.com"/></div>
+    <div class="modal-field"><label class="modal-label">Mailing Address <span class="required">*</span></label><input class="modal-input" id="in-address" type="text" placeholder="PO Box / Street, Community, NT, Postal Code"/></div>
+
+    <div class="modal-section-head">Dependents</div>
+    <div class="modal-row">
+      <div class="modal-field"><label class="modal-label">Number of Dependents <span class="required">*</span></label><select class="modal-select" id="in-deps"><option value="0">0</option><option value="1">1</option><option value="2" selected>2</option><option value="3">3</option><option value="4">4+</option></select></div>
+      <div class="modal-field"><label class="modal-label">Ages of Dependents</label><input class="modal-input" id="in-dep-ages" type="text" placeholder="e.g. 3, 6"/></div>
+    </div>
+    <div style="font-size:9.5px;color:#888;margin-top:-4px;margin-bottom:10px;line-height:1.5;">Number of dependents affects your monthly living allowance rate. Changes require documentation (e.g. birth certificates).</div>
+
+    <div class="modal-section-head">Disability Accommodation <span class="sensitivity-tag st-sensitive">Sensitive</span></div>
+    <div class="modal-field">
+      <label class="modal-label">Do you have a disability that affects full-time course load?</label>
+      <select class="modal-select" id="in-disability">
+        <option value="none" selected>No / Not applicable</option>
+        <option value="yes">Yes — I have supporting documentation</option>
+        <option value="pending">Yes — documentation in progress</option>
+      </select>
+    </div>
+    <div style="font-size:9.5px;color:#888;margin-bottom:10px;line-height:1.5;">If yes, a documented disability allows full-time classification at a lower course load threshold. Supporting documentation must be uploaded.</div>
+
+    <button class="modal-btn" onclick="savePersonal()">Save Personal Information →</button>
+  </div>
+</div>
+
+<!-- Edit Eligibility Identifiers -->
+<div class="modal-overlay" id="modal-eligibility">
+  <div class="modal wide">
+    <button class="modal-close" onclick="closeModal('eligibility')">✕</button>
+    <h3>Update Eligibility Identifiers</h3>
+    <div class="modal-sub">High sensitivity — verified by DGG staff. Changes trigger re-verification.</div>
+
+    <div class="sensitivity-note sensitivity-high">
+      <strong>🔒 High sensitivity.</strong> These fields are verified against official registries by DGG staff. Any change you submit here will be flagged for staff review before taking effect.
+    </div>
+
+    <div class="modal-section-head">Deline Beneficiary Number</div>
+    <div class="modal-field"><label class="modal-label">Beneficiary # <span class="required">*</span></label><input class="modal-input" id="in-ben" type="text" placeholder="e.g. DGG-00412"/></div>
+    <div style="font-size:9.5px;color:#888;margin-bottom:10px;">Confirms DGGR eligibility — verified against the Beneficiary Registry.</div>
+
+    <div class="modal-section-head">Indian Status / Treaty Number</div>
+    <div class="modal-field"><label class="modal-label">Status / Treaty # <span class="required">*</span></label><input class="modal-input" id="in-status" type="text" placeholder="e.g. SCN 123456789"/></div>
+    <div class="modal-field"><label class="modal-label">Upload Updated Status Card (if changed)</label><input class="modal-input" type="file" accept="image/*,.pdf"/></div>
+    <div style="font-size:9.5px;color:#888;margin-bottom:10px;">Confirms C-DFN PSSSP / UCEPP eligibility. Both sides of your Status Card are required.</div>
+
+    <div class="modal-section-head">Eligibility Journey</div>
+    <div style="background:#fafafa; border:1px solid #ddd; padding:12px; border-radius:3px; margin-bottom:14px;">
+      <div class="modal-field">
+        <label class="modal-label">1. Registered under Indian Act with DFN (formerly)?</label>
+        <div style="display:flex; gap:12px; font-size:11px;">
+          <label style="display:flex; align-items:center; gap:4px;"><input type="radio" name="elig_q1" value="yes" onchange="checkProfileEligibility()"/> Yes</label>
+          <label style="display:flex; align-items:center; gap:4px;"><input type="radio" name="elig_q1" value="no" onchange="checkProfileEligibility()"/> No</label>
+        </div>
+      </div>
+
+      <div class="modal-field">
+        <label class="modal-label">2. Are you a Délı̨nę Beneficiary? <span style="font-weight:400; font-size:10px; color:#1a6b3a; cursor:help;" title="Délı̨nę Beneficiary means a person enrolled as a Délı̨nę participant in the enrolment register pursuant to Chapter 4 of the Sahtú Dene and Métis Comprehensive Land Claim Agreement.">[?] Definition</span></label>
+        <div style="display:flex; gap:12px; font-size:11px;">
+          <label style="display:flex; align-items:center; gap:4px;"><input type="radio" name="elig_q2" value="yes" onchange="checkProfileEligibility()"/> Yes</label>
+          <label style="display:flex; align-items:center; gap:4px;"><input type="radio" name="elig_q2" value="no" onchange="checkProfileEligibility()"/> No</label>
+        </div>
+      </div>
+
+      <div class="modal-field">
+        <label class="modal-label">3. Currently receiving GNWT SFA?</label>
+        <div style="display:flex; gap:12px; font-size:11px;">
+          <label style="display:flex; align-items:center; gap:4px;"><input type="radio" name="elig_q3" value="yes" onchange="checkProfileEligibility()"/> Yes</label>
+          <label style="display:flex; align-items:center; gap:4px;"><input type="radio" name="elig_q3" value="no" onchange="checkProfileEligibility()"/> No</label>
+        </div>
+      </div>
+
+      <div class="modal-field">
+        <label class="modal-label">4. Where do you currently live?</label>
+        <select class="modal-select" id="elig_q4" onchange="checkProfileEligibility()">
+          <option value="" disabled selected>Select location...</option>
+          <option value="nwt">Northwest Territories</option>
+          <option value="other">Other Canadian province or territory</option>
+          <option value="outside">Outside Canada</option>
+        </select>
+      </div>
+
+      <div class="modal-field">
+        <label class="modal-label">5. Enrolled in Accredited Institution?</label>
+        <div style="display:flex; gap:12px; font-size:11px;">
+          <label style="display:flex; align-items:center; gap:4px;"><input type="radio" name="elig_q5" value="yes" onchange="checkProfileEligibility()"/> Yes</label>
+          <label style="display:flex; align-items:center; gap:4px;"><input type="radio" name="elig_q5" value="no" onchange="checkProfileEligibility()"/> No</label>
+        </div>
+      </div>
+
+      <div class="modal-field">
+        <label class="modal-label">6. Approved Program (12+ weeks)?</label>
+        <div style="display:flex; gap:12px; font-size:11px;">
+          <label style="display:flex; align-items:center; gap:4px;"><input type="radio" name="elig_q6" value="yes" onchange="checkProfileEligibility()"/> Yes</label>
+          <label style="display:flex; align-items:center; gap:4px;"><input type="radio" name="elig_q6" value="no" onchange="checkProfileEligibility()"/> No</label>
+        </div>
+      </div>
+
+      <div id="profile_elig_result" style="display:none; margin-top:10px; padding:8px 10px; border-radius:3px; font-size:10.5px; border:1px solid #ddd; line-height:1.4;">
+        <strong id="profile_elig_title" style="display:block; margin-bottom:2px;">Mapping...</strong>
+        <span id="profile_elig_desc"></span>
+      </div>
+    </div>
+    <div style="font-size:9.5px;color:#888;margin-bottom:10px;">Receiving SFA makes you ineligible for C-DFN tuition and living allowances. DGGR is unaffected.</div>
+
+    <div class="modal-section-head">Unique Personal Identifier (UPI) <span class="sensitivity-tag st-extreme">Extreme Sensitivity</span></div>
+    <div class="sensitivity-note sensitivity-extreme">
+      <strong>🔒 Extremely sensitive.</strong> Used for duplicate profile detection only. Not used for tax, reporting, or any other purpose. Contact the Privacy Officer to update.
+    </div>
+    <div style="font-size:9.5px;color:#888;margin-bottom:10px;">To update your UPI, contact DGG staff directly. This field cannot be changed through the portal.</div>
+
+    <button class="modal-btn" onclick="saveEligibility()">Submit for Staff Verification →</button>
+  </div>
+</div>
+
+<!-- Banking Details -->
+<div class="modal-overlay" id="modal-banking">
+  <div class="modal wide">
+    <button class="modal-close" onclick="closeModal('banking')">✕</button>
+    <h3>Banking &amp; Payment Details</h3>
+    <div class="modal-sub">High sensitivity · Direct deposit only · Void cheque required</div>
+
+    <div class="sensitivity-note sensitivity-high">
+      <strong>🔒 High sensitivity.</strong> Banking details are encrypted. A void cheque is required to verify your account before any payments can be processed. No advance payments are made under any circumstances.
+    </div>
+
+    <div class="modal-section-head">Account Information</div>
+    <div class="modal-field"><label class="modal-label">Account Holder Name <span class="required">*</span></label><input class="modal-input" id="in-bank-holder" type="text" placeholder="Full legal name as it appears on bank account"/></div>
+    <div class="modal-field"><label class="modal-label">Financial Institution <span class="required">*</span></label><input class="modal-input" id="in-bank-name" type="text" placeholder="e.g. RBC Royal Bank, TD Canada Trust, Credit Union…"/></div>
+    <div class="modal-field">
+      <label class="modal-label">Account Type <span class="required">*</span></label>
+      <select class="modal-select" id="in-bank-type">
+        <option value="" disabled selected>Select account type</option>
+        <option>Chequing</option>
+        <option>Savings</option>
+      </select>
+    </div>
+
+    <div class="modal-section-head">Routing Numbers</div>
+    <div class="modal-row">
+      <div class="modal-field">
+        <label class="modal-label">Transit Number <span class="required">*</span></label>
+        <input class="modal-input" id="in-transit" type="text" maxlength="5" placeholder="5 digits"/>
+        <div style="font-size:9px;color:#aaa;margin-top:3px;">Found at bottom of cheque (3rd set of numbers)</div>
+      </div>
+      <div class="modal-field">
+        <label class="modal-label">Institution Number <span class="required">*</span></label>
+        <input class="modal-input" id="in-institution-num" type="text" maxlength="3" placeholder="3 digits"/>
+        <div style="font-size:9px;color:#aaa;margin-top:3px;">Found at bottom of cheque (2nd set)</div>
+      </div>
+    </div>
+    <div class="modal-field">
+      <label class="modal-label">Account Number <span class="required">*</span></label>
+      <input class="modal-input" id="in-account-num" type="text" maxlength="12" placeholder="7–12 digits"/>
+      <div style="font-size:9px;color:#aaa;margin-top:3px;">Found at bottom of cheque (1st set of numbers)</div>
+    </div>
+
+    <div class="modal-section-head">Void Cheque Upload <span class="required">*</span></div>
+    <div class="modal-field">
+      <label class="modal-label">Upload Void Cheque <span class="required">*</span></label>
+      <input class="modal-input" id="in-void-cheque" type="file" accept="image/*,.pdf" onchange="handleChequeUpload(this)"/>
+      <div style="font-size:9.5px;color:#888;margin-top:4px;line-height:1.5;">Write "VOID" across a cheque from your account and upload a clear photo or scan. PDF, JPG, or PNG — max 10MB. Your account cannot be activated until this is received and verified by staff.</div>
+    </div>
+
+    <button class="modal-btn" onclick="saveBanking()">Save Banking Information →</button>
+  </div>
+</div>
+
+<!-- Edit Enrollment -->
+<div class="modal-overlay" id="modal-enrollment">
+  <div class="modal wide">
+    <button class="modal-close" onclick="closeModal('enrollment')">✕</button>
+    <h3>Update Enrollment Information</h3>
+    <div class="modal-sub">Standard sensitivity · Drives eligibility and payment calculations · Changes may affect your funding amount.</div>
+
+    <div class="alert-box info" style="margin-bottom:14px;font-size:9.5px;">
+      Enrollment details are confirmed by your institution through Form B. If your status changes mid-semester (e.g. drop to part-time), you must report it here as soon as possible.
+    </div>
+
+    <div class="modal-section-head">Institution &amp; Program</div>
+    <div class="modal-field"><label class="modal-label">Institution Name <span class="required">*</span></label><input class="modal-input" id="in-institution" type="text" placeholder="e.g. University of Calgary"/></div>
+    <div class="modal-field"><label class="modal-label">Institution Location (City, Province) <span class="required">*</span></label><input class="modal-input" id="in-inst-loc" type="text" placeholder="e.g. Calgary, AB"/></div>
+    <div class="modal-field"><label class="modal-label">Program / Credential <span class="required">*</span></label><input class="modal-input" id="in-program" type="text" placeholder="e.g. Bachelor of Nursing Science"/></div>
+    <div class="modal-field">
+      <label class="modal-label">Program Type <span class="required">*</span></label>
+      <select class="modal-select" id="in-progtype">
+        <option value="" disabled selected>Select</option>
+        <option>Post-Secondary (non-upgrading)</option>
+        <option>Upgrading / University Entrance Prep</option>
+        <option>Trades / Vocational</option>
+        <option>Professional Degree (MD, JD, etc.)</option>
+      </select>
+    </div>
+
+    <div class="modal-section-head">Enrollment Status</div>
+    <div class="modal-row">
+      <div class="modal-field">
+        <label class="modal-label">Current Semester <span class="required">*</span></label>
+        <select class="modal-select" id="in-semester">
+          <option>Fall 2025</option><option>Winter 2026</option><option>Spring 2026</option><option>Summer 2026</option>
+        </select>
+      </div>
+      <div class="modal-field">
+        <label class="modal-label">Enrollment Status <span class="required">*</span></label>
+        <select class="modal-select" id="in-enroll-status">
+          <option>Full-Time</option><option>Part-Time</option>
+        </select>
+      </div>
+    </div>
+    <div class="modal-row">
+      <div class="modal-field">
+        <label class="modal-label">Semester Start Date <span class="required">*</span></label>
+        <input class="modal-input" id="in-sem-start" type="text" placeholder="YYYY/MM/DD"/>
+      </div>
+      <div class="modal-field">
+        <label class="modal-label">Semester End Date <span class="required">*</span></label>
+        <input class="modal-input" id="in-sem-end" type="text" placeholder="YYYY/MM/DD"/>
+      </div>
+    </div>
+    <div class="modal-row">
+      <div class="modal-field">
+        <label class="modal-label">Course Load % (from institution) <span class="required">*</span></label>
+        <input class="modal-input" id="in-courseload" type="text" placeholder="e.g. 100%"/>
+      </div>
+      <div class="modal-field">
+        <label class="modal-label">Expected Graduation Date</label>
+        <input class="modal-input" id="in-grad-date" type="text" placeholder="e.g. April 2027"/>
+      </div>
+    </div>
+    <div style="font-size:9.5px;color:#888;margin-bottom:10px;line-height:1.5;">Course load percentage is confirmed by your institution on Form B, not by you. Your institution will update this directly.</div>
+
+    <button class="modal-btn" onclick="saveEnrollment()">Save Enrollment Information →</button>
+  </div>
+</div>
+
+<!-- Upload Document -->
+<div class="modal-overlay" id="modal-upload">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal('upload')">✕</button>
+    <h3>Upload Document</h3>
+    <div class="modal-sub">Sensitive · Supports eligibility verification and award claims · Max 10MB per file</div>
+
+    <div class="modal-section-head">Document Details</div>
+    <div class="modal-field">
+      <label class="modal-label">Document Type <span class="required">*</span></label>
+      <select class="modal-select">
+        <option value="" disabled selected>Select document type</option>
+        <option>Indian Status Card (both sides)</option>
+        <option>Deline Beneficiary Confirmation</option>
+        <option>Acceptance Letter</option>
+        <option>Void Cheque</option>
+        <option>Transcript</option>
+        <option>Proof of Graduation / Credential</option>
+        <option>Disability Documentation</option>
+        <option>Travel Receipts</option>
+        <option>Dependent Documentation (birth certificate, etc.)</option>
+        <option>Other Supporting Document</option>
+      </select>
+    </div>
+    <div class="modal-field">
+      <label class="modal-label">Semester / Period (if applicable)</label>
+      <input class="modal-input" type="text" placeholder="e.g. Fall 2025"/>
+    </div>
+    <div class="modal-field">
+      <label class="modal-label">Select File <span class="required">*</span></label>
+      <input class="modal-input" type="file" accept="image/*,.pdf,.png,.jpg"/>
+    </div>
+    <div class="modal-field">
+      <label class="modal-label">Notes (optional)</label>
+      <textarea class="modal-textarea" placeholder="Any context for staff reviewing this document…"></textarea>
+    </div>
+    <div style="font-size:9.5px;color:#888;margin-bottom:8px;line-height:1.5;">Files are stored securely. Staff will review and mark as Verified. You will be notified once reviewed.</div>
+    <button class="modal-btn">Upload Document →</button>
+  </div>
+</div>
+
+<script>
+  var upiRevealed = false;
+  var upiValue    = 'SIN-***-***-***'; // masked display; real value never stored in JS
+
+  function toggleUPI() {
+    upiRevealed = !upiRevealed;
+    document.getElementById('upi-masked').textContent    = upiRevealed ? upiValue : '●●●●●●●●●●';
+    document.getElementById('upi-toggle-btn').textContent = upiRevealed ? 'Hide' : 'Reveal';
+  }
+
+  // ── Modal open/close ──
+  function openModal(id) {
+    prefillModal(id);
+    document.getElementById('modal-' + id).classList.add('open');
+    document.body.style.overflow = 'hidden';
+  }
+  function closeModal(id) {
+    document.getElementById('modal-' + id).classList.remove('open');
+    document.body.style.overflow = '';
+  }
+  document.querySelectorAll('.modal-overlay').forEach(function(o){
+    o.addEventListener('click', function(e){ if(e.target===o){ o.classList.remove('open'); document.body.style.overflow=''; } });
+  });
+  document.addEventListener('keydown', function(e){
+    if(e.key==='Escape'){ document.querySelectorAll('.modal-overlay.open').forEach(function(m){ m.classList.remove('open'); }); document.body.style.overflow=''; }
+  });
+
+  // ── Prefill modals from displayed values ──
+  function prefillModal(id) {
+    if (id === 'personal') {
+      setVal('in-firstname', 'disp-firstname');
+      setVal('in-lastname',  'disp-lastname');
+      setVal('in-dob',       'disp-dob');
+      setVal('in-phone',     'disp-phone');
+      setVal('in-email',     'disp-email');
+      setVal('in-address',   'disp-address');
+    }
+    if (id === 'eligibility') {
+      setVal('in-ben',    'disp-ben');
+      setVal('in-status', 'disp-status');
+    }
+    if (id === 'enrollment') {
+      setVal('in-institution', 'disp-institution');
+      setVal('in-program',     'disp-program');
+      setVal('in-inst-loc',    'disp-inst-loc');
+      setVal('in-sem-start',   'disp-sem-start');
+      setVal('in-sem-end',     'disp-sem-end');
+    }
+  }
+  function setVal(inputId, dispId) {
+    var el = document.getElementById(inputId);
+    var src = document.getElementById(dispId);
+    if (el && src) el.value = src.textContent.trim();
+  }
+
+  // ── Save personal ──
+  function savePersonal() {
+    var fn   = v('in-firstname'); var ln = v('in-lastname');
+    var dob  = v('in-dob');       var ph = v('in-phone');
+    var em   = v('in-email');     var ad = v('in-address');
+    var dep  = v('in-deps');      var da = v('in-dep-ages');
+    var pref = v('in-preferred'); var pro = v('in-pronouns');
+    var aph  = v('in-altphone');
+    var dis  = document.getElementById('in-disability').value;
+
+    if (!fn||!ln||!dob||!ph||!em||!ad) { alert('Please fill in all required fields.'); return; }
+
+    if (fn) document.getElementById('disp-firstname').textContent = fn;
+    if (ln) document.getElementById('disp-lastname').textContent  = ln;
+    if (dob) document.getElementById('disp-dob').textContent      = dob;
+    if (ph)  document.getElementById('disp-phone').textContent    = ph;
+    if (em)  document.getElementById('disp-email').textContent    = em;
+    if (ad)  document.getElementById('disp-address').textContent  = ad;
+    setOrMuted('disp-preferred', pref);
+    setOrMuted('disp-pronouns',  pro);
+    setOrMuted('disp-altphone',  aph);
+
+    var depNum = parseInt(dep) || 0;
+    document.getElementById('disp-deps').innerHTML = depNum + ' <span style="font-size:9.5px;color:#888;">(affects living allowance)</span>';
+    setOrMuted('disp-dep-ages', da);
+
+    var disMap = { none:'None declared', yes:'Yes — documentation uploaded', pending:'Yes — documentation in progress' };
+    document.getElementById('disp-disability').innerHTML = (disMap[dis]||'None declared') +
+      '<span class="sensitivity-tag st-sensitive" style="margin-left:4px;">Sensitive</span>';
+
+    closeModal('personal');
+    showToast('Personal information saved');
+    updateCompleteness();
+  }
+
+  // ── Save eligibility ──
+  var currentMappedStream = "C-DFN PSSSP + DGGR";
+
+  function checkProfileEligibility() {
+    var q1Elem = document.querySelector('input[name="elig_q1"]:checked');
+    var q2Elem = document.querySelector('input[name="elig_q2"]:checked');
+    var q3Elem = document.querySelector('input[name="elig_q3"]:checked');
+    var q5Elem = document.querySelector('input[name="elig_q5"]:checked');
+    var q6Elem = document.querySelector('input[name="elig_q6"]:checked');
+    var q4 = document.getElementById('elig_q4').value;
+
+    var q1 = q1Elem ? q1Elem.value : null;
+    var q2 = q2Elem ? q2Elem.value : null;
+    var q3 = q3Elem ? q3Elem.value : null;
+    var q5 = q5Elem ? q5Elem.value : null;
+    var q6 = q6Elem ? q6Elem.value : null;
+
+    var box = document.getElementById('profile_elig_result');
+    var title = document.getElementById('profile_elig_title');
+    var desc = document.getElementById('profile_elig_desc');
+    
+    if (q1 && q2 && q3 && q4 && q5 && q6) {
+      box.style.display = 'block';
+      if (q5 === 'no' || q6 === 'no' || (q1 === 'no' && q2 === 'no')) {
+        title.innerText = 'Outcome: Ineligible';
+        desc.innerText = 'Based on these updates, you may no longer qualify for funding. DGG staff will review the changes.';
+        box.style.background = '#fdeaea'; box.style.borderColor = '#facaca'; box.style.color = '#c00';
+        currentMappedStream = "Ineligible / Pending Review";
+      } else {
+        title.innerText = 'Outcome: Eligible';
+        box.style.background = '#eafaea'; box.style.borderColor = '#cafaca'; box.style.color = '#1a6b3a';
+        if (q4 === 'nwt') {
+          currentMappedStream = (q2 === 'yes') ? "DGGR Top-Up Only (SFA Primary)" : "SFA Only (No DGG Top-up)";
+        } else {
+          currentMappedStream = (q1 === 'yes') ? "Federal PSSSP / UCEPP" + (q2 === 'yes' ? " + DGGR" : "") : (q2 === 'yes' ? "DGGR Top-Up Only" : "None");
+        }
+        desc.innerText = 'Mapped to: ' + currentMappedStream;
+      }
+    }
+  }
+
+  function saveEligibility() {
+    document.getElementById('disp-funding-source').textContent = currentMappedStream;
+    document.getElementById('disp-sfa').textContent = document.querySelector('input[name="elig_q3"]:checked').value === 'yes' ? "Receiving SFA" : "Not receiving SFA";
+    closeModal('eligibility');
+    showToast('Eligibility info submitted for staff verification');
+  }
+
+  // ── Save banking ──
+  function saveBanking() {
+    var holder   = v('in-bank-holder');
+    var bankName = v('in-bank-name');
+    var bankType = document.getElementById('in-bank-type').value;
+    var transit  = v('in-transit');
+    var instNum  = v('in-institution-num');
+    var accNum   = v('in-account-num');
+    if (!holder||!bankName||!bankType||!transit||!instNum||!accNum) { alert('Please fill in all required banking fields.'); return; }
+
+    document.getElementById('disp-bank-holder').textContent  = holder;
+    document.getElementById('disp-bank-name').textContent    = bankName;
+    document.getElementById('disp-bank-type').textContent    = bankType;
+    document.getElementById('disp-transit').textContent      = transit.replace(/./g,'●') + ' (' + transit.length + ' digits)';
+    document.getElementById('disp-institution-num').textContent = instNum.replace(/./g,'●') + ' (' + instNum.length + ' digits)';
+    document.getElementById('disp-account-num').textContent  = '●●●●' + accNum.slice(-3);
+    // Remove muted styling
+    ['disp-bank-holder','disp-bank-name','disp-bank-type','disp-transit','disp-institution-num','disp-account-num'].forEach(function(id){
+      var el = document.getElementById(id); if(el){ el.classList.remove('muted'); }
+    });
+
+    var chequeInput = document.getElementById('in-void-cheque');
+    if (chequeInput && chequeInput.files && chequeInput.files[0]) {
+      document.getElementById('cheque-badge').textContent = 'Uploaded — Pending Review';
+      document.getElementById('cheque-badge').className = 'doc-badge db-uploaded';
+      document.getElementById('cheque-filename').textContent = chequeInput.files[0].name;
+    }
+
+    // Update section badge
+    var secBadge = document.querySelector('#modal-banking ~ * .vb-pending');
+    closeModal('banking');
+    showToast('Banking information saved — pending staff verification');
+    updateCompleteness();
+  }
+
+  // ── Save enrollment ──
+  function saveEnrollment() {
+    var inst   = v('in-institution');
+    var prog   = v('in-program');
+    var loc    = v('in-inst-loc');
+    var sem    = document.getElementById('in-semester').value;
+    var enroll = document.getElementById('in-enroll-status').value;
+    var cl     = v('in-courseload');
+    var gd     = v('in-grad-date');
+    var sStart = v('in-sem-start');
+    var sEnd   = v('in-sem-end');
+    if (!inst||!prog) { alert('Institution and program are required.'); return; }
+
+    if(inst)   document.getElementById('disp-institution').textContent   = inst;
+    if(prog)   document.getElementById('disp-program').textContent       = prog;
+    if(loc)    document.getElementById('disp-inst-loc').textContent      = loc;
+    if(sem)    document.getElementById('disp-semester').textContent      = sem;
+    if(enroll) document.getElementById('disp-enroll-status').innerHTML   = enroll + ' <span class="vb-verified verify-badge">✓ Form B</span>';
+    if(cl)     document.getElementById('disp-courseload').innerHTML      = cl + ' <span style="font-size:9px;color:#888;">(confirmed by institution)</span>';
+    if(gd)     document.getElementById('disp-grad-date').textContent     = gd;
+    if(sStart) document.getElementById('disp-sem-start').textContent     = sStart;
+    if(sEnd)   document.getElementById('disp-sem-end').textContent       = sEnd;
+
+    closeModal('enrollment');
+    showToast('Enrollment information saved');
+  }
+
+  function handleChequeUpload(input) {
+    if (input.files && input.files[0]) {
+      // just visual feedback inside modal
+    }
+  }
+
+  // ── Helpers ──
+  function v(id) { var el = document.getElementById(id); return el ? el.value.trim() : ''; }
+  function setOrMuted(dispId, val) {
+    var el = document.getElementById(dispId);
+    if (!el) return;
+    if (val) { el.textContent = val; el.classList.remove('muted'); }
+    else     { el.textContent = '—'; el.classList.add('muted'); }
+  }
+
+  // ── Completeness ──
+  function updateCompleteness() {
+    var score = 65; // simplified demo update
+    var hasBank = v('in-bank-holder') || document.getElementById('disp-bank-holder').textContent !== 'Not entered';
+    if (hasBank) score = 85;
+    document.getElementById('pctLabel').textContent = score + '%';
+    var bar = document.getElementById('pctBar');
+    bar.style.width = score + '%';
+    if (score >= 80) { bar.classList.remove('amber'); }
+  }
+
+  // ── Toast ──
+  function showToast(msg) {
+    var t = document.getElementById('toast');
+    if (!t) {
+      t = document.createElement('div');
+      t.id = 'toast';
+      t.style.cssText = 'position:fixed;bottom:24px;right:24px;background:#1a1a1a;color:#fff;font-size:11px;padding:10px 18px;border-radius:4px;box-shadow:0 4px 16px rgba(0,0,0,0.2);z-index:999;display:none;';
+      document.body.appendChild(t);
+    }
+    t.textContent = msg;
+    t.style.display = 'block';
+    setTimeout(function(){ t.style.display = 'none'; }, 2800);
+  }
+</script>
+</body>
+</html>

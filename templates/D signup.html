@@ -1,0 +1,569 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Student Sign-Up — Deline Got'ine Government</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+      background: #e8e8e8;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    /* ── Browser chrome ── */
+    .browser-chrome {
+      width: 100%;
+      max-width: 700px;
+      background: #fff;
+      border-radius: 8px;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.18);
+      overflow: hidden;
+    }
+
+    .browser-bar {
+      background: #f0f0f0;
+      border-bottom: 1px solid #d0d0d0;
+      padding: 8px 12px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .browser-dots { display: flex; gap: 5px; }
+    .browser-dots span { width: 10px; height: 10px; border-radius: 50%; background: #c8c8c8; display: block; }
+    .browser-url {
+      flex: 1; background: #fff; border: 1px solid #d0d0d0;
+      border-radius: 4px; padding: 3px 10px; font-size: 11px; color: #555;
+    }
+
+    /* ── Layout ── */
+    .page-layout { display: flex; min-height: 540px; }
+
+    /* ── Left panel ── */
+    .left-panel {
+      width: 210px; flex-shrink: 0;
+      background: #1a1a1a;
+      padding: 24px 20px;
+      display: flex; flex-direction: column; justify-content: space-between;
+      color: #fff;
+    }
+    .left-top .create-title { font-size: 13px; font-weight: 600; color: #fff; margin-bottom: 3px; }
+    .left-top .create-sub   { font-size: 9px; color: #888; margin-bottom: 20px; }
+
+    .step-list { list-style: none; display: flex; flex-direction: column; gap: 8px; }
+    .step-list li {
+      display: flex; align-items: center; gap: 8px;
+      font-size: 10px; color: #666;
+    }
+    .step-list li.active { color: #fff; font-weight: 600; }
+    .step-list li.done   { color: #888; }
+
+    .step-num {
+      width: 18px; height: 18px; border: 1px solid #555;
+      border-radius: 2px; display: flex; align-items: center; justify-content: center;
+      font-size: 9px; color: #666; flex-shrink: 0;
+    }
+    .step-list li.active .step-num { border-color: #fff; color: #fff; background: transparent; }
+
+    .left-notes { margin-top: 24px; display: flex; flex-direction: column; gap: 4px; }
+    .left-notes span { font-size: 9px; color: #888; padding-left: 12px; position: relative; }
+    .left-notes span::before { content: '—'; position: absolute; left: 0; }
+
+    /* ── Right form ── */
+    .right-panel { flex: 1; padding: 28px 32px; background: #fff; overflow-y: auto; }
+
+    .step-indicator { font-size: 9px; color: #888; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 6px; }
+    .form-title { font-size: 22px; font-weight: 400; color: #111; margin-bottom: 3px; }
+    .form-sub { font-size: 11px; color: #555; margin-bottom: 18px; }
+    .form-sub a { color: #111; font-weight: 500; text-decoration: none; }
+    .form-sub a:hover { text-decoration: underline; }
+
+    /* Step panels */
+    .step-panel { display: none; }
+    .step-panel.active { display: block; }
+
+    /* Grid rows */
+    .field-row { display: flex; gap: 10px; margin-bottom: 11px; }
+    .field-row .field-group { flex: 1; }
+    .field-group { margin-bottom: 11px; }
+
+    .field-label {
+      font-size: 9.5px; font-weight: 600; color: #333;
+      letter-spacing: 0.05em; text-transform: uppercase;
+      margin-bottom: 4px; display: block;
+    }
+    .required { color: #cc0000; }
+
+    .field-input, .field-select, .field-textarea {
+      width: 100%; padding: 8px 9px;
+      border: 1px solid #ccc; border-radius: 3px;
+      font-size: 11.5px; color: #333; outline: none;
+      font-family: inherit; background: #fff;
+    }
+    .field-input::placeholder, .field-textarea::placeholder { color: #bbb; }
+    .field-input:focus, .field-select:focus, .field-textarea:focus { border-color: #555; }
+    .field-textarea { resize: vertical; min-height: 52px; }
+    .field-select { appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23999'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 9px center; padding-right: 24px; }
+
+    /* Dependents */
+    .dependent-card {
+      border: 1px solid #ddd; border-radius: 3px;
+      padding: 10px 12px; margin-bottom: 8px; background: #fafafa; position: relative;
+    }
+    .dependent-card .dep-header {
+      font-size: 10px; font-weight: 600; color: #333;
+      letter-spacing: 0.04em; text-transform: uppercase;
+      margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center;
+    }
+    .dep-remove {
+      background: none; border: none; cursor: pointer; font-size: 11px; color: #999;
+      padding: 0; font-family: inherit;
+    }
+    .dep-remove:hover { color: #cc0000; }
+
+    .add-dep-btn {
+      background: none; border: 1px dashed #bbb; border-radius: 3px;
+      width: 100%; padding: 7px; font-size: 11px; color: #555;
+      cursor: pointer; font-family: inherit; margin-top: 2px;
+      display: flex; align-items: center; justify-content: center; gap: 5px;
+    }
+    .add-dep-btn:hover { border-color: #555; color: #333; background: #fafafa; }
+
+    /* Checkbox row */
+    .checkbox-row { display: flex; align-items: center; gap: 8px; margin-bottom: 11px; }
+    .checkbox-row input[type="checkbox"] { width: 14px; height: 14px; accent-color: #1a1a1a; cursor: pointer; }
+    .checkbox-row label { font-size: 11.5px; color: #333; cursor: pointer; }
+
+    /* Section divider */
+    .section-divider {
+      font-size: 9px; font-weight: 600; letter-spacing: 0.1em;
+      text-transform: uppercase; color: #999;
+      border-bottom: 1px solid #e8e8e8;
+      padding-bottom: 4px; margin: 14px 0 10px;
+    }
+
+    /* Buttons */
+    .btn-continue {
+      width: 100%; padding: 10px; background: #1a1a1a; color: #fff;
+      border: none; border-radius: 3px; font-size: 11px; font-weight: 600;
+      letter-spacing: 0.07em; text-transform: uppercase; cursor: pointer;
+      margin-top: 16px; display: flex; align-items: center; justify-content: center;
+      gap: 6px; font-family: inherit;
+    }
+    .btn-continue:hover { background: #333; }
+
+    .btn-back {
+      background: none; border: none; font-size: 11px; color: #555;
+      cursor: pointer; font-family: inherit; margin-top: 8px;
+      display: block; text-align: center; width: 100%;
+      padding: 6px;
+    }
+    .btn-back:hover { color: #111; }
+
+    .help-text { text-align: center; font-size: 11px; color: #555; margin-top: 12px; }
+    .help-text a { color: #333; font-weight: 500; text-decoration: none; }
+    .help-text a:hover { text-decoration: underline; }
+
+    /* Step 3 verify */
+    .verify-note {
+      background: #f5f5f5; border: 1px solid #ddd; border-radius: 3px;
+      padding: 10px 12px; font-size: 11px; color: #555; margin-bottom: 14px; line-height: 1.5;
+    }
+
+    /* Progress dots on left */
+    .progress-dots { display: flex; gap: 5px; margin-top: 18px; }
+    .progress-dots span { width: 6px; height: 6px; border-radius: 50%; background: #444; }
+    .progress-dots span.active { background: #fff; }
+
+    /* Summary on step 3 */
+    .summary-row { display: flex; justify-content: space-between; font-size: 11px; padding: 5px 0; border-bottom: 1px solid #f0f0f0; }
+    .summary-row .s-label { color: #888; }
+    .summary-row .s-val   { color: #111; font-weight: 500; text-align: right; max-width: 55%; }
+  </style>
+</head>
+<body>
+
+<div class="browser-chrome">
+  <!-- Browser bar -->
+  <div class="browser-bar">
+    <div class="browser-dots"><span></span><span></span><span></span></div>
+    <div class="browser-url">portal.deline.ca/register</div>
+  </div>
+
+  <div class="page-layout">
+
+    <!-- ── Left panel ── -->
+    <div class="left-panel">
+      <div class="left-top">
+        <div class="create-title">Create Your Account</div>
+        <div class="create-sub">Less than 5 minutes · Email optional</div>
+
+        <ul class="step-list" id="leftStepList">
+          <li class="active" id="ls1">
+            <div class="step-num">1</div> Basic Information
+          </li>
+        </ul>
+
+        <div class="left-notes">
+          <span>Email is optional</span>
+          <span>Progress saves after each step</span>
+          <span>Return anytime with any login method</span>
+        </div>
+      </div>
+
+      <div class="progress-dots">
+        <span class="active" id="pd1"></span>
+      </div>
+    </div>
+
+    <!-- ── Right panel ── -->
+    <div class="right-panel">
+
+      <!-- ══ STEP 1: Basic Information ══ -->
+      <div class="step-panel active" id="step1">
+        <div class="step-indicator">Account Creation</div>
+        <div class="form-title">Tell us about yourself</div>
+        <div class="form-sub">Already have an account? <a href="signin.html">Sign in →</a></div>
+
+        <div class="section-divider" style="margin-top:0;">Eligibility Check</div>
+        <div style="background:#fafafa; border:1px solid #ddd; padding:16px; border-radius:3px; margin-bottom:20px;">
+          <div class="checkbox-row" style="margin-bottom:16px; align-items:flex-start;">
+            <div style="width:100%; font-size:11.5px; font-weight:600; margin-bottom:4px; color:#333;">1. Are you registered under the Indian Act, with your status affiliated with the band formerly known as the Délı̨nę First Nation?</div>
+            <div style="display:flex; gap:12px;">
+              <label style="display:flex; align-items:center; gap:4px;"><input type="radio" name="elig_q1" value="yes" onchange="checkEligibility()"/> Yes</label>
+              <label style="display:flex; align-items:center; gap:4px;"><input type="radio" name="elig_q1" value="no" onchange="checkEligibility()"/> No</label>
+            </div>
+          </div>
+          <div class="checkbox-row" style="margin-bottom:16px; align-items:flex-start;">
+            <div style="width:100%; font-size:11.5px; font-weight:600; margin-bottom:4px; color:#333;">2. Are you a Délı̨nę Beneficiary? <span style="font-weight:400; font-size:10px; color:#1a6b3a; cursor:help;" title="Délı̨nę Beneficiary means a person enrolled as a Délı̨nę participant in the enrolment register pursuant to Chapter 4 of the Sahtú Dene and Métis Comprehensive Land Claim Agreement.">[?] Definition</span></div>
+            <div style="display:flex; gap:12px;">
+              <label style="display:flex; align-items:center; gap:4px;"><input type="radio" name="elig_q2" value="yes" onchange="checkEligibility()"/> Yes</label>
+              <label style="display:flex; align-items:center; gap:4px;"><input type="radio" name="elig_q2" value="no" onchange="checkEligibility()"/> No</label>
+            </div>
+          </div>
+          <div class="checkbox-row" style="margin-bottom:16px; align-items:flex-start; flex-wrap:wrap;">
+            <div style="width:100%; font-size:11.5px; font-weight:600; margin-bottom:4px; color:#333;">3. Are you currently receiving GNWT Student Financial Assistance (SFA)?</div>
+            <div style="display:flex; gap:12px; width:100%;">
+              <label style="display:flex; align-items:center; gap:4px;"><input type="radio" name="elig_q3" value="yes" onchange="checkEligibility()"/> Yes</label>
+              <label style="display:flex; align-items:center; gap:4px;"><input type="radio" name="elig_q3" value="no" onchange="checkEligibility()"/> No</label>
+            </div>
+          </div>
+          <div class="checkbox-row" style="margin-bottom:16px; align-items:flex-start; flex-direction:column; gap:4px;">
+            <div style="width:100%; font-size:11.5px; font-weight:600; margin-bottom:2px; color:#333;">4. Where do you currently live?</div>
+            <select class="field-select" id="elig_q4" style="width:auto; padding:6px 24px 6px 8px;" onchange="checkEligibility()">
+              <option value="" disabled selected>Select location...</option>
+              <option value="nwt">Northwest Territories</option>
+              <option value="other">Other Canadian province or territory</option>
+              <option value="outside">Outside Canada</option>
+            </select>
+          </div>
+          <div class="checkbox-row" style="margin-bottom:16px; align-items:flex-start;">
+            <div style="width:100%; font-size:11.5px; font-weight:600; margin-bottom:4px; color:#333;">5. Are you enrolled in an Accredited Institution? <a href="https://www.canada.ca/en/employment-social-development/programs/designated-schools.html" target="_blank" style="font-weight:400; font-size:10.5px; color:#1a3a6b; margin-left:6px; text-decoration:underline;">Check Federal Master List</a></div>
+            <div style="display:flex; gap:12px;">
+              <label style="display:flex; align-items:center; gap:4px;"><input type="radio" name="elig_q5" value="yes" onchange="checkEligibility()"/> Yes</label>
+              <label style="display:flex; align-items:center; gap:4px;"><input type="radio" name="elig_q5" value="no" onchange="checkEligibility()"/> No</label>
+            </div>
+          </div>
+          <div class="checkbox-row" style="margin-bottom:16px; align-items:flex-start;">
+            <div style="width:100%; font-size:11.5px; font-weight:600; margin-bottom:4px; color:#333;">6. Are you enrolled in an approved program that is at least 12 continuous weeks? <span style="font-weight:400; font-size:10px; color:#1a6b3a; cursor:help;" title="Approved Program means a course of study that leads to a certificate, diploma, degree, trades or upgrading program (including Open Studies and online/hybrid); delivered at an Accredited Institution; and at least 12 continuous weeks, unless otherwise approved by the DGG Education Director.">[?] Definition</span></div>
+            <div style="display:flex; gap:12px;">
+              <label style="display:flex; align-items:center; gap:4px;"><input type="radio" name="elig_q6" value="yes" onchange="checkEligibility()"/> Yes</label>
+              <label style="display:flex; align-items:center; gap:4px;"><input type="radio" name="elig_q6" value="no" onchange="checkEligibility()"/> No</label>
+            </div>
+          </div>
+          <div id="elig_result_box" style="display:none; margin-top:16px; padding:12px 14px; border-radius:3px; background:#fff2f2; border:1px solid #ffcccc; color:#cc0000; font-size:11px; line-height:1.5;">
+            <strong id="elig_result_title" style="display:block; margin-bottom:4px; font-size:12px;">Intake Stopped</strong>
+            <span id="elig_result_desc">Based on your answers, you do not meet the baseline eligibility for DGG funding streams. Please contact our support team.</span>
+          </div>
+        </div>
+
+        <div class="section-divider">Basic Information</div>
+        <div class="field-row">
+          <div class="field-group">
+            <label class="field-label">First Name <span class="required">*</span></label>
+            <input class="field-input" type="text" placeholder="Marie" />
+          </div>
+          <div class="field-group">
+            <label class="field-label">Last Name <span class="required">*</span></label>
+            <input class="field-input" type="text" placeholder="Beaulieu" />
+          </div>
+        </div>
+
+        <div class="field-row">
+          <div class="field-group">
+            <label class="field-label">Date of Birth <span class="required">*</span></label>
+            <input class="field-input" type="text" placeholder="DD / MM / YYYY" />
+          </div>
+          <div class="field-group">
+            <label class="field-label">DGG Beneficiary # <span style="font-weight:400;text-transform:none;letter-spacing:0;font-size:9px;color:#999">(Optional)</span></label>
+            <input class="field-input" type="text" placeholder="e.g. DGG-00412" />
+          </div>
+        </div>
+
+        <div class="field-row">
+          <div class="field-group">
+            <label class="field-label">Email Address</label>
+            <input class="field-input" type="email" placeholder="e.g. marie@email.com (optional)" />
+          </div>
+          <div class="field-group">
+            <label class="field-label">Phone Number <span class="required">*</span></label>
+            <input class="field-input" type="tel" placeholder="(867) 000-0000" />
+          </div>
+        </div>
+
+        <div class="field-row">
+          <div class="field-group">
+            <label class="field-label">Indian Status / Treaty Number <span class="required">*</span></label>
+            <input class="field-input" type="text" placeholder="e.g. 123456789" />
+          </div>
+          <div class="field-group">
+            <label class="field-label">Band / Treaty Number</label>
+            <input class="field-input" type="text" placeholder="e.g. Band 555" />
+          </div>
+        </div>
+
+
+
+        <div class="field-group">
+          <label class="field-label">Disability Status</label>
+          <select class="field-select">
+            <option value="" disabled selected>Select status</option>
+            <option>No disability</option>
+            <option>Physical disability</option>
+            <option>Learning disability</option>
+            <option>Mental health condition</option>
+            <option>Other / Prefer not to say</option>
+          </select>
+        </div>
+
+        <!-- Dependents -->
+        <div class="section-divider">Dependents</div>
+        <div id="dependents-container"></div>
+        <button class="add-dep-btn" onclick="addDependent()" type="button">+ Add Dependent</button>
+
+        <div class="section-divider">Set Password</div>
+        <div class="field-row">
+          <div class="field-group">
+            <label class="field-label">Password <span class="required">*</span></label>
+            <input class="field-input" type="password" placeholder="&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;" />
+          </div>
+          <div class="field-group">
+            <label class="field-label">Confirm Password <span class="required">*</span></label>
+            <input class="field-input" type="password" placeholder="&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;" />
+          </div>
+        </div>
+
+        <button class="btn-continue" onclick="window.location='student-dashboard-full.html'" type="button">Create My Account &nbsp;→</button>
+
+        <div style="margin-top:32px; text-align:center; border-top:1px solid #eee; padding-top:24px;">
+          <div style="font-size:11.5px; font-weight:600; color:#333; margin-bottom:12px;">Applying for a one-off award?</div>
+          <div style="display:flex; gap:8px; justify-content:center;">
+            <a href="form-hardship.html" style="font-size:10.5px; font-weight:600; color:#111; text-decoration:none; padding:7px 12px; border:1px solid #ccc; border-radius:3px; background:#fafafa; transition:background 0.2s;" onmouseover="this.style.background='#eee'" onmouseout="this.style.background='#fafafa'">Hardship</a>
+            <a href="form-f-practicum.html" style="font-size:10.5px; font-weight:600; color:#111; text-decoration:none; padding:7px 12px; border:1px solid #ccc; border-radius:3px; background:#fafafa; transition:background 0.2s;" onmouseover="this.style.background='#eee'" onmouseout="this.style.background='#fafafa'">Practicum</a>
+            <a href="form-g-graduation.html" style="font-size:10.5px; font-weight:600; color:#111; text-decoration:none; padding:7px 12px; border:1px solid #ccc; border-radius:3px; background:#fafafa; transition:background 0.2s;" onmouseover="this.style.background='#eee'" onmouseout="this.style.background='#fafafa'">Graduation</a>
+          </div>
+          <div style="font-size:10px; color:#888; margin-top:12px; line-height:1.5;"><strong>Continue without an account</strong> for these short-term applications.</div>
+        </div>
+      </div>
+
+
+
+    </div><!-- end right-panel -->
+  </div><!-- end page-layout -->
+</div><!-- end browser-chrome -->
+
+<script>
+  var depCount = 0;
+
+
+
+  function addDependent() {
+    depCount++;
+    var id = 'dep-' + depCount;
+    var container = document.getElementById('dependents-container');
+    var card = document.createElement('div');
+    card.className = 'dependent-card';
+    card.id = id;
+    card.innerHTML =
+      '<div class="dep-header">' +
+        '<span>Dependent ' + depCount + '</span>' +
+        '<button class="dep-remove" onclick="removeDependent(\'' + id + '\')" type="button">✕ Remove</button>' +
+      '</div>' +
+      '<div class="field-row">' +
+        '<div class="field-group">' +
+          '<label class="field-label">First Name <span class="required">*</span></label>' +
+          '<input class="field-input" type="text" placeholder="First name" />' +
+        '</div>' +
+        '<div class="field-group">' +
+          '<label class="field-label">Last Name <span class="required">*</span></label>' +
+          '<input class="field-input" type="text" placeholder="Last name" />' +
+        '</div>' +
+      '</div>' +
+      '<div class="field-row">' +
+        '<div class="field-group">' +
+          '<label class="field-label">Date of Birth <span class="required">*</span></label>' +
+          '<input class="field-input" type="text" placeholder="DD / MM / YYYY" />' +
+        '</div>' +
+        '<div class="field-group">' +
+          '<label class="field-label">Relationship <span class="required">*</span></label>' +
+          '<select class="field-select">' +
+            '<option value="" disabled selected>Select</option>' +
+            '<option>Child</option>' +
+            '<option>Spouse / Partner</option>' +
+            '<option>Other</option>' +
+          '</select>' +
+        '</div>' +
+      '</div>' +
+      '<div class="field-row">' +
+        '<div class="field-group">' +
+          '<label class="field-label">Indian Status / Treaty #</label>' +
+          '<input class="field-input" type="text" placeholder="e.g. 123456789" />' +
+        '</div>' +
+        '<div class="field-group">' +
+          '<label class="field-label">Disability Status</label>' +
+          '<select class="field-select">' +
+            '<option value="" disabled selected>Select</option>' +
+            '<option>No disability</option>' +
+            '<option>Physical disability</option>' +
+            '<option>Learning disability</option>' +
+            '<option>Mental health condition</option>' +
+            '<option>Other / Prefer not to say</option>' +
+          '</select>' +
+        '</div>' +
+      '</div>';
+    container.appendChild(card);
+    updateDepSummary();
+  }
+
+  function removeDependent(id) {
+    var el = document.getElementById(id);
+    if (el) el.remove();
+    updateDepSummary();
+  }
+
+  function updateDepSummary() {
+    var cards = document.getElementById('dependents-container').children.length;
+    document.getElementById('dep-summary').textContent = cards > 0 ? cards + ' dependent(s)' : 'None';
+  }
+
+  function checkEligibility() {
+    var q1Elem = document.querySelector('input[name="elig_q1"]:checked');
+    var q2Elem = document.querySelector('input[name="elig_q2"]:checked');
+    var q3Elem = document.querySelector('input[name="elig_q3"]:checked');
+    var q5Elem = document.querySelector('input[name="elig_q5"]:checked');
+    var q6Elem = document.querySelector('input[name="elig_q6"]:checked');
+    var q4 = document.getElementById('elig_q4').value;
+
+    var q1 = q1Elem ? q1Elem.value : null;
+    var q2 = q2Elem ? q2Elem.value : null;
+    var q3 = q3Elem ? q3Elem.value : null;
+    var q5 = q5Elem ? q5Elem.value : null;
+    var q6 = q6Elem ? q6Elem.value : null;
+
+    var box = document.getElementById('elig_result_box');
+    var title = document.getElementById('elig_result_title');
+    var desc = document.getElementById('elig_result_desc');
+    var btn = document.querySelector('.btn-continue') || document.querySelector('#step1 .btn-continue');
+    
+    // Hide inline notes initially
+    var q3Note = document.getElementById('q3_note');
+    var q4Note = document.getElementById('q4_note');
+    if(q3Note) q3Note.style.display = 'none';
+    if(q4Note) q4Note.style.display = 'none';
+
+    // Show inline notes conditionally (SFA Denial)
+    if (q4 === 'nwt' && q3 === 'no' && q3Note) {
+      q3Note.style.display = 'block';
+      q3Note.innerHTML = '<strong>Note:</strong> As an NWT resident, you are expected to apply for GNWT SFA first. Since you are not receiving SFA, you will be required to upload proof of denial or your Sahtu Dene Council ISETS/UCEPP approval context later.';
+    }
+    
+    var showBox = true;
+    var isApproved = false;
+    var style = 'info';
+
+    // Rule out dealbreakers first
+    if (q5 === 'no') {
+      style = 'error';
+      title.innerText = 'Intake Stopped - Institution Not Accredited';
+      desc.innerHTML = 'Based on your answers, you do not qualify for DGG funding support at this time. DGG funding requires enrollment at an Accredited Institution. Please contact the DGG Education Department if you have questions.';
+    } else if (q6 === 'no') {
+      if (q1 === 'yes' || q2 === 'yes') {
+        style = 'error';
+        title.innerText = 'Intake Stopped - Program Requirements';
+        desc.innerHTML = 'Based on your answers, you are not eligible for any funding administered by the DGG Education Department. You may wish to contact the Sahtu Dene Council to ask about other funding programs.';
+      } else {
+        style = 'error';
+        title.innerText = 'Intake Stopped';
+        desc.innerHTML = 'Based on your answers, you do not qualify for DGG funding support at this time. Please contact the DGG Education Department if you have questions or believe you should still qualify.';
+      }
+    } else if (q1 === 'no' && q2 === 'no' && q1 !== null && q2 !== null) {
+      style = 'error';
+      title.innerText = 'Intake Stopped';
+      desc.innerHTML = 'Based on your answers, you do not qualify for DGG funding support at this time. Please contact the DGG Education Department if you have questions or believe you should still qualify.';
+    } else if (q1 && q2 && q3 && q4 && q5 === 'yes' && q6 === 'yes') {
+      // Run advanced routing (All 6 questions answered positively)
+      isApproved = true;
+      if (q4 === 'nwt') {
+        if (q2 === 'yes') {
+          style = 'success';
+          title.innerText = 'Action Required: DGGR Top-Up Funding';
+          desc.innerHTML = 'Based on your status as an NWT resident and Délı̨nę Beneficiary, you qualify for <strong>DGGR Top-Up Funding</strong>. Your primary funding must be requested through GNWT SFA first.';
+        } else {
+          style = 'error';
+          title.innerText = 'Intake Stopped';
+          desc.innerHTML = 'Based on your answers, you do not qualify for DGG funding support at this time. Please contact the DGG Education Department if you have questions or believe you should still qualify.';
+        }
+      } else if (q4 === 'other' || q4 === 'outside') {
+        if (q1 === 'yes') {
+          style = 'success';
+          title.innerText = 'Eligible: Federal PSSSP / UCEPP Funding';
+          desc.innerHTML = 'Because you live outside the NWT and are registered with the Délı̨nę First Nation, you qualify for the <strong>Federal Post-Secondary Student Support Program (PSSSP)</strong>. ' + (q2 === 'yes' ? 'You have also qualified for the DGGR Top-Up.' : '');
+        } else if (q2 === 'yes') {
+          style = 'success';
+          title.innerText = 'Eligible: DGGR Top-Up Only';
+          desc.innerHTML = 'Because you are not registered with the Délı̨nę First Nation (Indian Act), you do not qualify for Federal PSSSP. However, as a Délı̨nę Beneficiary, you qualify for <strong>DGGR Top-Up Funding</strong>.';
+        } else {
+           style = 'error';
+           title.innerText = 'Intake Stopped';
+           desc.innerHTML = 'Based on your answers, you do not qualify for DGG funding support at this time. Please contact the DGG Education Department if you have questions or believe you should still qualify.';
+        }
+      }
+    } else {
+      style = 'info';
+      title.innerText = 'Eligibility Incomplete';
+      desc.innerHTML = 'Please answer all 6 questions above to determine your eligibility and proceed.';
+    }
+
+    if (showBox) {
+      box.style.display = 'block';
+      if (style === 'error') {
+        box.style.background = '#fff2f2'; box.style.borderColor = '#ffcccc'; box.style.color = '#cc0000';
+      } else if (style === 'success') {
+        box.style.background = '#e8f4e8'; box.style.borderColor = '#b8e0b8'; box.style.color = '#1a6b3a';
+      } else if (style === 'warning') {
+        box.style.background = '#fffbe6'; box.style.borderColor = '#ffe58f'; box.style.color = '#875914';
+      } else if (style === 'info') {
+        box.style.background = '#f8f9fa'; box.style.borderColor = '#dee2e6'; box.style.color = '#495057';
+      }
+    }
+
+    if (btn) {
+      if (isApproved) {
+        btn.disabled = false; btn.style.background = ''; btn.style.cursor = 'pointer'; btn.style.opacity = '1';
+      } else {
+        btn.disabled = true; btn.style.background = '#bbb'; btn.style.cursor = 'not-allowed'; btn.style.opacity = '0.7';
+      }
+    }
+  }
+
+  // Run on load to lock the form initially
+  window.addEventListener('DOMContentLoaded', checkEligibility);
+</script>
+</body>
+</html>

@@ -1,0 +1,1166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Form A — New Student Application | Deline Got'ine Government</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+      background: #e8e8e8; min-height: 100vh;
+      display: flex; align-items: flex-start; justify-content: center; padding: 20px;
+    }
+
+    /* ── Browser chrome ── */
+    .browser-chrome {
+      width: 100%; max-width: 860px; background: #fff;
+      border-radius: 8px; box-shadow: 0 4px 24px rgba(0,0,0,0.18); overflow: hidden;
+    }
+    .browser-bar {
+      background: #f0f0f0; border-bottom: 1px solid #d0d0d0;
+      padding: 8px 12px; display: flex; align-items: center; gap: 10px;
+    }
+    .browser-dots { display: flex; gap: 5px; }
+    .browser-dots span { width: 10px; height: 10px; border-radius: 50%; background: #c8c8c8; display: block; }
+    .browser-url { flex: 1; background: #fff; border: 1px solid #d0d0d0; border-radius: 4px; padding: 3px 10px; font-size: 11px; color: #555; }
+
+    /* ── Top header bar ── */
+    .form-header {
+      background: #1a1a1a; padding: 10px 24px;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .form-header-left { font-size: 11px; font-weight: 700; color: #fff; letter-spacing: 0.04em; text-transform: uppercase; }
+    .form-header-right { font-size: 9px; color: #888; text-align: right; line-height: 1.5; }
+
+    /* ── Step progress bar ── */
+    .step-bar {
+      background: #f7f7f7; border-bottom: 1px solid #e0e0e0;
+      padding: 0 24px; display: flex; align-items: stretch; gap: 0;
+    }
+    .step-tab {
+      display: flex; align-items: center; gap: 7px;
+      padding: 10px 16px 10px 0; margin-right: 20px;
+      font-size: 10px; color: #aaa; cursor: pointer;
+      border-bottom: 2px solid transparent; position: relative;
+      white-space: nowrap;
+    }
+    .step-tab.active { color: #111; border-bottom-color: #1a1a1a; font-weight: 600; }
+    .step-tab.done   { color: #555; }
+    .step-tab.done .step-circle { background: #1a1a1a; color: #fff; border-color: #1a1a1a; }
+    .step-circle {
+      width: 18px; height: 18px; border-radius: 50%;
+      border: 1.5px solid #ccc; display: flex; align-items: center; justify-content: center;
+      font-size: 9px; font-weight: 700; color: #aaa; flex-shrink: 0;
+    }
+    .step-tab.active .step-circle { border-color: #1a1a1a; color: #1a1a1a; }
+
+    /* ── Form body ── */
+    .form-body { padding: 24px 28px 32px; }
+
+    /* Step panels */
+    .step-panel { display: none; }
+    .step-panel.active { display: block; }
+
+    .step-heading { font-size: 13px; font-weight: 700; color: #111; margin-bottom: 2px; text-transform: uppercase; letter-spacing: 0.03em; }
+    .step-sub { font-size: 10px; color: #888; margin-bottom: 18px; line-height: 1.5; }
+
+    /* Bursary type selector */
+    .bursary-options {
+      border: 1px solid #ddd; border-radius: 3px; padding: 12px 14px; margin-bottom: 18px; background: #fafafa;
+    }
+    .bursary-options-label { font-size: 9px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #555; margin-bottom: 8px; }
+    .bursary-option { display: flex; align-items: flex-start; gap: 8px; margin-bottom: 7px; cursor: pointer; }
+    .bursary-option:last-child { margin-bottom: 0; }
+    .bursary-option input[type="radio"] { margin-top: 2px; accent-color: #1a1a1a; cursor: pointer; }
+    .bursary-option-text { font-size: 11px; color: #333; line-height: 1.4; }
+    .bursary-option-text small { font-size: 9.5px; color: #888; display: block; margin-top: 1px; }
+
+    /* Section headers */
+    .section-header {
+      background: #f0f0f0; border: 1px solid #ddd; border-bottom: none;
+      padding: 7px 12px; font-size: 11px; font-weight: 700; color: #111;
+      margin-top: 16px;
+    }
+    .section-header:first-of-type { margin-top: 0; }
+
+    /* Form grid table */
+    .form-table {
+      width: 100%; border-collapse: collapse; border: 1px solid #ddd; margin-bottom: 0;
+    }
+    .form-table td {
+      border: 1px solid #ddd; padding: 0; vertical-align: top;
+    }
+    .form-table + .section-header { margin-top: 16px; }
+
+    .cell-label {
+      font-size: 9.5px; color: #555; padding: 5px 8px 2px; display: block;
+    }
+    .cell-input {
+      width: 100%; border: none; outline: none; padding: 3px 8px 6px;
+      font-size: 12px; color: #111; font-family: inherit; background: transparent;
+    }
+    .cell-input::placeholder { color: #ccc; }
+    .cell-input:focus { background: #fffbe6; }
+
+    .cell-select {
+      width: 100%; border: none; outline: none; padding: 3px 8px 6px;
+      font-size: 12px; color: #111; font-family: inherit; background: transparent;
+      appearance: none;
+    }
+    .cell-select:focus { background: #fffbe6; }
+
+    /* Checkbox rows */
+    .checkbox-cell { padding: 8px 10px !important; }
+    .cb-row { display: flex; align-items: center; gap: 6px; margin-bottom: 5px; font-size: 11px; color: #333; flex-wrap: wrap; }
+    .cb-row:last-child { margin-bottom: 0; }
+    .cb-row input[type="checkbox"], .cb-row input[type="radio"] { accent-color: #1a1a1a; cursor: pointer; }
+    .cb-row label { cursor: pointer; }
+    .cb-group { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+
+    /* Required docs */
+    .req-docs {
+      border: 1px solid #ddd; border-radius: 3px; padding: 12px 14px; margin-top: 16px; background: #fafafa;
+    }
+    .req-docs-title { font-size: 10px; font-weight: 700; color: #111; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.04em; }
+    .req-docs-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 20px; }
+    .req-doc-item {
+      display: flex; align-items: flex-start; gap: 8px;
+      font-size: 10.5px; color: #444; padding: 4px 0;
+    }
+    .req-doc-item input[type="file"] { display: none; }
+    .doc-upload-btn {
+      background: none; border: 1px solid #ccc; border-radius: 2px;
+      font-size: 9px; color: #555; padding: 2px 7px; cursor: pointer;
+      font-family: inherit; white-space: nowrap; flex-shrink: 0;
+    }
+    .doc-upload-btn:hover { border-color: #555; color: #111; }
+    .doc-status { font-size: 9px; color: #3a6b3a; margin-top: 2px; display: none; }
+
+    /* Declaration */
+    .declaration-box {
+      border: 1px solid #ddd; border-radius: 3px; padding: 12px 14px; margin-top: 16px; background: #fafafa;
+    }
+    .declaration-text { font-size: 10.5px; color: #444; line-height: 1.6; margin-bottom: 14px; }
+    .sig-row { display: flex; gap: 16px; }
+    .sig-field { flex: 1; }
+    .sig-label { font-size: 9.5px; color: #555; margin-bottom: 4px; display: block; }
+    .sig-input {
+      width: 100%; border: none; border-bottom: 1px solid #999;
+      padding: 4px 0; font-size: 12px; outline: none; background: transparent; font-family: inherit;
+    }
+    .sig-input:focus { border-bottom-color: #111; background: #fffbe6; }
+
+    /* Navigation buttons */
+    .form-nav {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-top: 24px; padding-top: 16px; border-top: 1px solid #e8e8e8;
+    }
+    .btn-back {
+      background: none; border: 1px solid #ccc; border-radius: 3px;
+      font-size: 11px; font-weight: 500; color: #555; padding: 9px 18px;
+      cursor: pointer; font-family: inherit;
+    }
+    .btn-back:hover { border-color: #555; color: #111; }
+    .btn-next {
+      background: #1a1a1a; color: #fff; border: none; border-radius: 3px;
+      font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;
+      padding: 9px 22px; cursor: pointer; font-family: inherit;
+      display: flex; align-items: center; gap: 6px;
+    }
+    .btn-next:hover { background: #333; }
+    .btn-next:disabled { background: #bbb; cursor: not-allowed; }
+
+    /* ── Form B Preview Modal ── */
+    .modal-overlay {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,0.5); z-index: 200;
+      align-items: center; justify-content: center;
+    }
+    .modal-overlay.open { display: flex; }
+    .modal-box {
+      background: #fff; border-radius: 4px; width: 640px; max-height: 88vh;
+      overflow-y: auto; padding: 0; box-shadow: 0 8px 40px rgba(0,0,0,0.25);
+    }
+    .modal-header {
+      background: #1a1a1a; padding: 14px 20px;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .modal-header h3 { font-size: 12px; font-weight: 700; color: #fff; text-transform: uppercase; letter-spacing: 0.04em; }
+    .modal-header .modal-close { background: none; border: none; color: #aaa; font-size: 16px; cursor: pointer; }
+    .modal-header .modal-close:hover { color: #fff; }
+    .modal-body { padding: 20px 24px; }
+
+    .form-b-notice {
+      background: #e8f0e8; border: 1px solid #b8d8b8; border-radius: 3px;
+      padding: 10px 14px; font-size: 11px; color: #2a5a2a; margin-bottom: 16px; line-height: 1.5;
+    }
+
+    /* Form B readonly display */
+    .formb-table { width: 100%; border-collapse: collapse; margin-bottom: 0; }
+    .formb-table td { border: 1px solid #ddd; padding: 0; vertical-align: top; }
+    .formb-section { background: #f0f0f0; border: 1px solid #ddd; border-bottom: none; padding: 7px 12px; font-size: 11px; font-weight: 700; color: #111; margin-top: 14px; }
+    .fb-label { font-size: 9.5px; color: #555; padding: 5px 8px 2px; display: block; }
+    .fb-val { font-size: 12px; color: #111; padding: 3px 8px 7px; display: block; min-height: 22px; }
+    .cb-val { font-size: 11px; color: #111; padding: 8px 10px; }
+
+    .modal-footer {
+      padding: 14px 24px; border-top: 1px solid #e8e8e8;
+      display: flex; justify-content: space-between; align-items: center; gap: 10px;
+    }
+    .modal-footer-note { font-size: 10px; color: #888; line-height: 1.5; max-width: 300px; }
+    .btn-confirm {
+      background: #1a6b3a; color: #fff; border: none; border-radius: 3px;
+      font-size: 11px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase;
+      padding: 10px 20px; cursor: pointer; font-family: inherit;
+    }
+    .btn-confirm:hover { background: #1f8a49; }
+
+    /* ── Success screen ── */
+    .success-screen {
+      display: none; text-align: center; padding: 48px 32px;
+    }
+    .success-screen.show { display: block; }
+    .success-icon {
+      width: 52px; height: 52px; border: 2px solid #1a6b3a; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center; margin: 0 auto 16px;
+    }
+    .success-screen h2 { font-size: 18px; font-weight: 600; color: #111; margin-bottom: 8px; }
+    .success-screen p  { font-size: 11.5px; color: #555; line-height: 1.7; max-width: 420px; margin: 0 auto 10px; }
+    .success-ref { font-size: 10px; color: #888; background: #f5f5f5; border: 1px solid #e0e0e0; border-radius: 3px; padding: 6px 14px; display: inline-block; margin: 10px 0; letter-spacing: 0.05em; }
+    .success-notice {
+      background: #e8f0e8; border: 1px solid #b8d8b8; border-radius: 3px;
+      padding: 12px 16px; font-size: 11px; color: #2a5a2a; margin: 16px auto; max-width: 460px; line-height: 1.6; text-align: left;
+    }
+
+    /* Info tooltip */
+    .info-tag { font-size: 9px; color: #888; font-style: italic; }
+
+    /* Funding type conditional */
+    .funding-detail { display: none; }
+    .funding-detail.show { display: table-row; }
+
+    /* Validation */
+    .field-error { border-left: 3px solid #cc3333 !important; }
+    .error-msg { font-size: 9.5px; color: #cc3333; padding: 2px 8px 4px; display: none; }
+    .error-msg.show { display: block; }
+  </style>
+</head>
+<body>
+
+<div class="browser-chrome">
+  <!-- Browser bar -->
+  <div class="browser-bar">
+    <div class="browser-dots"><span></span><span></span><span></span></div>
+    <div class="browser-url" id="urlBar">portal.deline.ca/apply/form-a</div>
+  </div>
+
+  <!-- Top header -->
+  <div class="form-header">
+    <div class="form-header-left">Form A — New Student Application (3-Step Wizard)</div>
+    <div class="form-header-right">
+      <a href="student-dashboard-full.html" style="color:#aaa;text-decoration:none;font-size:9px;">← Back to Dashboard</a><br/>
+      Req A · Start with your family, finish funding<br/>
+      Save &amp; continue anytime
+    </div>
+  </div>
+
+  <!-- Step progress tabs -->
+  <div class="step-bar" id="stepBar">
+    <div class="step-tab active" id="tab1" onclick="goStep(1)">
+      <div class="step-circle">1</div> Student Information
+    </div>
+    <div class="step-tab" id="tab2">
+      <div class="step-circle">2</div> Program &amp; Institution
+    </div>
+    <div class="step-tab" id="tab3">
+      <div class="step-circle">3</div> Bank Deposit Info
+    </div>
+    <div class="step-tab" id="tab4">
+      <div class="step-circle">4</div> Documents &amp; Declaration
+    </div>
+  </div>
+
+  <!-- Form body -->
+  <div class="form-body">
+
+    <!-- ══════════════════════════════════════
+         STEP 1 — Student Information
+    ══════════════════════════════════════ -->
+    <div class="step-panel active" id="step1">
+      <div class="step-heading">Step 1 — Student Information</div>
+      <div class="step-sub">Complete all required fields. This information will also auto-fill Form B which will be sent to your institution.</div>
+
+      <!-- Eligibility Questionnaire -->
+      <div class="section-header" style="margin-top:0;">Eligibility Check</div>
+      <div style="background:#fafafa; border:1px solid #ddd; padding:16px; border-radius:3px; margin-bottom:20px;">
+        <div class="cb-row" style="margin-bottom:16px; align-items:flex-start;">
+          <div style="width:100%; font-size:11.5px; font-weight:600; margin-bottom:4px; color:#333;">1. Are you registered under the Indian Act, with your status affiliated with the band formerly known as the Délı̨nę First Nation?</div>
+          <div style="display:flex; gap:12px;">
+            <label style="display:flex; align-items:center; gap:4px;"><input type="radio" name="elig_q1" value="yes" onchange="checkEligibility()"/> Yes</label>
+            <label style="display:flex; align-items:center; gap:4px;"><input type="radio" name="elig_q1" value="no" onchange="checkEligibility()"/> No</label>
+          </div>
+        </div>
+
+        <div class="cb-row" style="margin-bottom:16px; align-items:flex-start;">
+          <div style="width:100%; font-size:11.5px; font-weight:600; margin-bottom:4px; color:#333;">2. Are you a Délı̨nę Beneficiary? <span style="font-weight:400; font-size:10px; color:#1a6b3a; cursor:help;" title="Délı̨nę Beneficiary means a person enrolled as a Délı̨nę participant in the enrolment register pursuant to Chapter 4 of the Sahtú Dene and Métis Comprehensive Land Claim Agreement.">[?] Definition</span></div>
+          <div style="display:flex; gap:12px;">
+            <label style="display:flex; align-items:center; gap:4px;"><input type="radio" name="elig_q2" value="yes" onchange="checkEligibility()"/> Yes</label>
+            <label style="display:flex; align-items:center; gap:4px;"><input type="radio" name="elig_q2" value="no" onchange="checkEligibility()"/> No</label>
+          </div>
+        </div>
+
+        <div class="cb-row" style="margin-bottom:16px; align-items:flex-start; flex-wrap:wrap;">
+          <div style="width:100%; font-size:11.5px; font-weight:600; margin-bottom:4px; color:#333;">3. Are you currently receiving GNWT Student Financial Assistance (SFA)?</div>
+          <div style="display:flex; gap:12px; width:100%;">
+            <label style="display:flex; align-items:center; gap:4px;"><input type="radio" name="elig_q3" value="yes" onchange="checkEligibility()"/> Yes</label>
+            <label style="display:flex; align-items:center; gap:4px;"><input type="radio" name="elig_q3" value="no" onchange="checkEligibility()"/> No</label>
+          </div>
+        </div>
+
+        <div class="cb-row" style="margin-bottom:16px; align-items:flex-start; flex-direction:column; gap:4px;">
+          <div style="width:100%; font-size:11.5px; font-weight:600; margin-bottom:2px; color:#333;">4. Where do you currently live?</div>
+          <select class="cell-select" id="elig_q4" style="border:1px solid #ccc; width:auto; padding:6px 24px 6px 8px; border-radius:3px;" onchange="checkEligibility()">
+            <option value="" disabled selected>Select location...</option>
+            <option value="nwt">Northwest Territories</option>
+            <option value="other">Other Canadian province or territory</option>
+            <option value="outside">Outside Canada</option>
+          </select>
+        </div>
+
+        <div class="cb-row" style="margin-bottom:16px; align-items:flex-start;">
+          <div style="width:100%; font-size:11.5px; font-weight:600; margin-bottom:4px; color:#333;">5. Are you enrolled in an Accredited Institution? <a href="https://www.canada.ca/en/employment-social-development/programs/designated-schools.html" target="_blank" style="font-weight:400; font-size:10.5px; color:#1a3a6b; margin-left:6px; text-decoration:underline;">Check Federal Master List</a></div>
+          <div style="display:flex; gap:12px;">
+            <label style="display:flex; align-items:center; gap:4px;"><input type="radio" name="elig_q5" value="yes" onchange="checkEligibility()"/> Yes</label>
+            <label style="display:flex; align-items:center; gap:4px;"><input type="radio" name="elig_q5" value="no" onchange="checkEligibility()"/> No</label>
+          </div>
+        </div>
+
+        <div class="cb-row" style="margin-bottom:16px; align-items:flex-start;">
+          <div style="width:100%; font-size:11.5px; font-weight:600; margin-bottom:4px; color:#333;">6. Are you enrolled in an approved program that is at least 12 continuous weeks? <span style="font-weight:400; font-size:10px; color:#1a6b3a; cursor:help;" title="Approved Program means a course of study that leads to a certificate, diploma, degree, trades or upgrading program (including Open Studies and online/hybrid); delivered at an Accredited Institution; and at least 12 continuous weeks, unless otherwise approved by the DGG Education Director.">[?] Definition</span></div>
+          <div style="display:flex; gap:12px;">
+            <label style="display:flex; align-items:center; gap:4px;"><input type="radio" name="elig_q6" value="yes" onchange="checkEligibility()"/> Yes</label>
+            <label style="display:flex; align-items:center; gap:4px;"><input type="radio" name="elig_q6" value="no" onchange="checkEligibility()"/> No</label>
+          </div>
+        </div>
+
+        <!-- Result Box -->
+        <div id="elig_result_box" style="display:none; margin-top:16px; padding:12px 14px; border-radius:3px; background:#fff2f2; border:1px solid #ffcccc; color:#cc0000; font-size:11px; line-height:1.5;">
+          <strong id="elig_result_title" style="display:block; margin-bottom:4px; font-size:12px;">Intake Stopped</strong>
+          <span id="elig_result_desc">Based on your answers, you do not meet the baseline eligibility for DGG funding streams. Please contact our support team.</span>
+        </div>
+      </div>
+
+      <!-- Student Information section -->
+      <div class="section-header">Student Information</div>
+      <table class="form-table">
+        <tr>
+          <td width="50%">
+            <span class="cell-label">First Name *</span>
+            <input class="cell-input" id="s_first" type="text" placeholder="Marie" oninput="syncFormB()"/>
+          </td>
+          <td width="50%">
+            <span class="cell-label">Last Name *</span>
+            <input class="cell-input" id="s_last" type="text" placeholder="Beaulieu" oninput="syncFormB()"/>
+          </td>
+        </tr>
+        <tr>
+          <td colspan="2">
+            <span class="cell-label">Permanent Address in NT *</span>
+            <input class="cell-input" id="s_perm_addr" type="text" placeholder="Street address" oninput="syncFormB()"/>
+          </td>
+        </tr>
+        <tr>
+          <td width="40%">
+            <span class="cell-label">Town / City *</span>
+            <input class="cell-input" id="s_perm_city" type="text" placeholder="Deline"/>
+          </td>
+          <td width="30%">
+            <span class="cell-label">Territory / Province *</span>
+            <input class="cell-input" id="s_perm_prov" type="text" placeholder="NT"/>
+          </td>
+          <td width="30%">
+            <span class="cell-label">Postal Code *</span>
+            <input class="cell-input" id="s_perm_postal" type="text" placeholder="X0E 0G0"/>
+          </td>
+        </tr>
+        <tr>
+          <td colspan="2">
+            <span class="cell-label">Current Address (if different from above)</span>
+            <input class="cell-input" id="s_curr_addr" type="text" placeholder="Leave blank if same"/>
+          </td>
+        </tr>
+        <tr>
+          <td width="40%">
+            <span class="cell-label">Town / City</span>
+            <input class="cell-input" id="s_curr_city" type="text" placeholder=""/>
+          </td>
+          <td width="30%">
+            <span class="cell-label">Territory / Province</span>
+            <input class="cell-input" id="s_curr_prov" type="text" placeholder=""/>
+          </td>
+          <td width="30%">
+            <span class="cell-label">Postal Code</span>
+            <input class="cell-input" id="s_curr_postal" type="text" placeholder=""/>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <span class="cell-label">Phone *</span>
+            <input class="cell-input" id="s_phone" type="tel" placeholder="(867) 000-0000" oninput="syncFormB()"/>
+          </td>
+          <td>
+            <span class="cell-label">Email Address</span>
+            <input class="cell-input" id="s_email" type="email" placeholder="optional" oninput="syncFormB()"/>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <span class="cell-label">SIN</span>
+            <input class="cell-input" id="s_sin" type="text" placeholder="000-000-000" oninput="syncFormB()"/>
+          </td>
+          <td>
+            <span class="cell-label">Sex</span>
+            <select class="cell-select" id="s_sex">
+              <option value="" disabled selected></option>
+              <option>Male</option><option>Female</option><option>Non-binary</option><option>Prefer not to say</option>
+            </select>
+          </td>
+          <td>
+            <span class="cell-label">Date of Birth (YYYY/MM/DD) *</span>
+            <input class="cell-input" id="s_dob" type="text" placeholder="YYYY/MM/DD" oninput="syncFormB()"/>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <span class="cell-label">Délı̨nę Beneficiary #</span>
+            <input class="cell-input" id="s_ben" type="text" placeholder="DGG-00000"/>
+          </td>
+          <td colspan="2" class="checkbox-cell">
+            <div class="cb-row">
+              <span style="font-size:11px;color:#333;margin-right:6px;">Dependents?</span>
+              <input type="radio" name="dep" value="yes" id="dep_yes"/> <label for="dep_yes" style="font-size:11px;">Yes</label>
+              &nbsp;
+              <input type="radio" name="dep" value="no" id="dep_no"/> <label for="dep_no" style="font-size:11px;">No</label>
+              &nbsp;&nbsp;
+              <span style="font-size:11px;color:#333;">If yes, how many?</span>
+              <input class="cell-input" id="s_dep_count" type="text" placeholder="0" style="width:50px;"/>
+            </div>
+          </td>
+        </tr>
+      </table>
+
+
+
+      <div class="form-nav">
+        <span class="info-tag">* Required fields</span>
+        <button class="btn-next" onclick="goStep(2)">Continue: Program &amp; Institution &nbsp;→</button>
+      </div>
+    </div><!-- end step1 -->
+
+    <!-- ══════════════════════════════════════
+         STEP 2 — Program & Institution
+    ══════════════════════════════════════ -->
+    <div class="step-panel" id="step2">
+      <div class="step-heading">Step 2 — Program &amp; Institution</div>
+      <div class="step-sub">Provide your educational institution details. These will be used to auto-fill Form B sent to your registrar.</div>
+
+      <div class="section-header">Educational Institution</div>
+      <table class="form-table">
+        <tr>
+          <td width="50%">
+            <span class="cell-label">Institution *</span>
+            <input class="cell-input" id="p_institution" type="text" placeholder="e.g. Aurora College" oninput="syncFormB()"/>
+          </td>
+          <td width="50%">
+            <span class="cell-label">Program *</span>
+            <input class="cell-input" id="p_program" type="text" placeholder="e.g. Business Administration Diploma" oninput="syncFormB()"/>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <span class="cell-label">Location</span>
+            <input class="cell-input" id="p_location" type="text" placeholder="City, NT"/>
+          </td>
+          <td class="checkbox-cell">
+            <div class="cb-row">
+              <span style="font-size:11px;color:#333;margin-right:6px;">Course Load:</span>
+              <input type="radio" name="courseload" value="Part-time" id="cl_pt" onchange="syncFormB()"/> <label for="cl_pt" style="font-size:11px;">Part-time</label>
+              &nbsp;
+              <input type="radio" name="courseload" value="Full-time" id="cl_ft" onchange="syncFormB()"/> <label for="cl_ft" style="font-size:11px;">Full-time</label>
+            </div>
+          </td>
+        </tr>
+
+        <tr>
+          <td colspan="2" class="checkbox-cell">
+            <div class="cb-row">
+              <span style="font-size:11px;color:#333;margin-right:6px;">Learning Style:</span>
+              <input type="radio" name="learn_style" value="In-person" id="ls_ip"/> <label for="ls_ip" style="font-size:11px;">In-person</label>
+              &nbsp;
+              <input type="radio" name="learn_style" value="Online" id="ls_on"/> <label for="ls_on" style="font-size:11px;">Online</label>
+            </div>
+          </td>
+        </tr>
+      </table>
+
+      <!-- When will you start classes? -->
+      <div class="section-header">When will you start classes?</div>
+      <table class="form-table">
+        <tr>
+          <td width="33%">
+            <span class="cell-label">Semester (Fall/Winter, etc.) *</span>
+            <input class="cell-input" id="p_semester" type="text" placeholder="e.g. Fall" oninput="syncFormB()"/>
+          </td>
+          <td width="33%">
+            <span class="cell-label">Semester Start Date (YY/MM/DD) *</span>
+            <input class="cell-input" id="p_sem_start_actual" type="text" placeholder="YY/MM/DD" oninput="syncFormB()"/>
+          </td>
+          <td width="33%">
+            <span class="cell-label">Semester End Date (YY/MM/DD) *</span>
+            <input class="cell-input" id="p_sem_end_actual" type="text" placeholder="YY/MM/DD" oninput="syncFormB()"/>
+          </td>
+        </tr>
+      </table>
+
+      <!-- Total Duration of Program: -->
+      <div class="section-header">Total Duration of Program:</div>
+      <table class="form-table">
+        <tr>
+          <td width="50%">
+            <span class="cell-label">Program Start Date (YY/MM/DD) *</span>
+            <input class="cell-input" id="p_start" type="text" placeholder="YY/MM/DD" oninput="syncFormB()"/>
+          </td>
+          <td width="50%">
+            <span class="cell-label">Program End Date (YY/MM/DD) *</span>
+            <input class="cell-input" id="p_end" type="text" placeholder="YY/MM/DD" oninput="syncFormB()"/>
+          </td>
+        </tr>
+      </table>
+
+      <!-- Institution contact (for Form B auto-send) -->
+      <div class="section-header">Institution Contact — for Form B Delivery</div>
+      <table class="form-table">
+        <tr>
+          <td colspan="2">
+            <span class="cell-label">Registrar / Official Email * <span class="info-tag">(Form B will be sent here)</span></span>
+            <input class="cell-input" id="inst_email" type="email" placeholder="registrar@institution.ca" oninput="syncFormB()"/>
+          </td>
+        </tr>
+        <tr>
+          <td colspan="2">
+            <span class="cell-label">Student ID (if already assigned)</span>
+            <input class="cell-input" id="s_student_id" type="text" placeholder="optional" oninput="syncFormB()"/>
+          </td>
+        </tr>
+      </table>
+
+      <div class="form-nav">
+        <button class="btn-back" onclick="goStep(1)">← Back</button>
+        <button class="btn-next" onclick="goStep(3)">Continue: Banking &amp; Payment &nbsp;→</button>
+      </div>
+    </div><!-- end step2 -->
+
+    <!-- ══════════════════════════════════════
+         STEP 3 — Bank Deposit Information
+    ══════════════════════════════════════ -->
+    <div class="step-panel" id="step3">
+      <div class="step-heading">Step 3 — Banking &amp; Payment Details</div>
+      <div class="step-sub">
+        Living allowance and tuition are auto-calculated from your eligibility and confirmed by your institution. Please provide your direct deposit details below to ensure timely payments.
+      </div>
+
+      <div style="margin-top:14px;">
+        <div class="section-header" style="margin-top:0;">Direct Deposit Information</div>
+        <table class="form-table" style="margin-bottom:14px;">
+          <tr>
+            <td colspan="2">
+              <span class="cell-label">Account Holder Name *</span>
+              <input class="cell-input" id="s_bank_holder" type="text" placeholder="Full legal name as on bank account"/>
+            </td>
+          </tr>
+          <tr>
+            <td colspan="2">
+              <span class="cell-label">Financial Institution (Bank Name) *</span>
+              <input class="cell-input" id="s_bank_name" type="text" placeholder="e.g. RBC, CIBC, Northway..."/>
+            </td>
+          </tr>
+          <tr>
+            <td width="33%">
+              <span class="cell-label">Transit Number (5 digits) *</span>
+              <input class="cell-input" id="s_bank_transit" type="text" maxlength="5" placeholder="00000"/>
+            </td>
+            <td width="33%">
+              <span class="cell-label">Institution Number (3 digits) *</span>
+              <input class="cell-input" id="s_bank_branch" type="text" maxlength="3" placeholder="000"/>
+            </td>
+            <td width="33%">
+              <span class="cell-label">Account Number (7-12 digits) *</span>
+              <input class="cell-input" id="s_bank_account" type="text" maxlength="12" placeholder="000000000"/>
+            </td>
+          </tr>
+        </table>
+        
+        <div style="font-size:10px; color:#666; background:#f9f9f9; padding:10px; border:1px solid #eee; border-radius:3px; line-height:1.4;">
+          <strong>Note:</strong> Your banking details are encrypted and used solely for direct deposit payments. A void cheque or direct deposit form must also be uploaded in the next step.
+        </div>
+      </div>
+
+      <div class="form-nav">
+        <button class="btn-back" onclick="goStep(2)">← Back</button>
+        <button class="btn-next" onclick="goStep(4)">Continue: Documents &amp; Declaration &nbsp;→</button>
+      </div>
+    </div><!-- end step3 -->
+
+    <!-- ══════════════════════════════════════
+         STEP 4 — Documents & Declaration
+    ══════════════════════════════════════ -->
+    <div class="step-panel" id="step4">
+      <div class="step-heading">Step 4 — Documents &amp; Declaration</div>
+      <div class="step-sub">Upload required supporting documents and sign the declaration to submit your application.</div>
+
+      <!-- Required documents -->
+      <div class="req-docs">
+        <div class="req-docs-title">Required Documents</div>
+        <div style="font-size:10.5px;color:#555;margin-bottom:12px;line-height:1.5;">To have a full and complete application you must also include the following documents. <strong style="color:#111;">If using a mobile phone, use your camera. Please ensure documents are well-lit and legible. If a document is not legible, you will be asked to rescan or retake the picture properly.</strong></div>
+        <div class="req-docs-grid">
+          <div>
+            <div class="req-doc-item">
+              <div>
+                <div>Current / recent transcripts <span style="color:#cc0000;">*</span></div>
+                <div style="display:flex;align-items:center;gap:6px;margin-top:3px;">
+                  <button class="doc-upload-btn" onclick="triggerUpload('doc_transcripts')">Upload</button>
+                  <span class="doc-status" id="status_doc_transcripts">✓ Uploaded</span>
+                </div>
+                <input type="file" id="doc_transcripts" accept="image/*,.pdf" capture="environment" onchange="markUploaded('doc_transcripts')"/>
+              </div>
+            </div>
+            <div class="req-doc-item" style="margin-top:6px;">
+              <div>
+                <div>Cover letter / letter of intent <span style="color:#cc0000;">*</span></div>
+                <div style="display:flex;align-items:center;gap:6px;margin-top:3px;">
+                  <button class="doc-upload-btn" onclick="triggerUpload('doc_cover')">Upload</button>
+                  <span class="doc-status" id="status_doc_cover">✓ Uploaded</span>
+                </div>
+                <input type="file" id="doc_cover" accept="image/*,.pdf" capture="environment" onchange="markUploaded('doc_cover')"/>
+              </div>
+            </div>
+            <div class="req-doc-item" style="margin-top:6px;">
+              <div>
+                <div>Letter of Reference <span class="info-tag">(not from a family member)</span></div>
+                <div style="display:flex;align-items:center;gap:6px;margin-top:3px;">
+                  <button class="doc-upload-btn" onclick="triggerUpload('doc_ref')">Upload</button>
+                  <span class="doc-status" id="status_doc_ref">✓ Uploaded</span>
+                </div>
+                <input type="file" id="doc_ref" accept="image/*,.pdf" capture="environment" onchange="markUploaded('doc_ref')"/>
+              </div>
+            </div>
+          </div>
+          <div>
+            <div class="req-doc-item">
+              <div>
+                <div>Deline First Nation Status Card <span style="color:#cc0000;">*</span> <span class="info-tag">(required for CDFN Bursary only)</span></div>
+                <div style="display:flex;align-items:center;gap:6px;margin-top:3px;">
+                  <button class="doc-upload-btn" onclick="triggerUpload('doc_status')">Upload</button>
+                  <span class="doc-status" id="status_doc_status">✓ Uploaded</span>
+                </div>
+                <input type="file" id="doc_status" accept="image/*,.pdf" capture="environment" onchange="markUploaded('doc_status')"/>
+              </div>
+            </div>
+            <div class="req-doc-item" style="margin-top:6px;">
+              <div>
+                <div>Void bank cheque</div>
+                <div style="display:flex;align-items:center;gap:6px;margin-top:3px;">
+                  <button class="doc-upload-btn" onclick="triggerUpload('doc_void')">Upload</button>
+                  <span class="doc-status" id="status_doc_void">✓ Uploaded</span>
+                </div>
+                <input type="file" id="doc_void" accept="image/*,.pdf" capture="environment" onchange="markUploaded('doc_void')"/>
+              </div>
+            </div>
+            <div class="req-doc-item" style="margin-top:6px;">
+              <div>
+                <div>Additional Documents (optional)</div>
+                <div style="display:flex;align-items:center;gap:6px;margin-top:3px;">
+                  <button class="doc-upload-btn" onclick="triggerUpload('doc_extra')">Upload</button>
+                  <span class="doc-status" id="status_doc_extra">✓ Uploaded</span>
+                </div>
+                <input type="file" id="doc_extra" accept="image/*,.pdf" capture="environment" multiple onchange="markUploaded('doc_extra')"/>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Declaration -->
+      <div class="declaration-box">
+        <div style="font-size:11px;font-weight:700;color:#111;margin-bottom:6px;">Student Declaration</div>
+        <div class="declaration-text">
+          I declare that all information given on this application along with provided documentation is true and any false
+          information regarding eligibility determination will result in suspension from the program.
+        </div>
+        <div class="sig-row">
+          <div class="sig-field">
+            <span class="sig-label">Student Signature (type full name) *</span>
+            <input class="sig-input" id="sig_name" type="text" placeholder="Type your full legal name"/>
+          </div>
+          <div class="sig-field" style="max-width:200px;">
+            <span class="sig-label">Date (YYYY/MM/DD) *</span>
+            <input class="sig-input" id="sig_date" type="text" placeholder="YYYY/MM/DD"/>
+          </div>
+        </div>
+      </div>
+
+      <!-- Form B preview notice -->
+      <div style="background:#e8f0ff;border:1px solid #b0c8f8;border-radius:3px;padding:12px 14px;margin-top:16px;font-size:11px;color:#1a3a6b;line-height:1.6;">
+        <strong>📋 Form B will be auto-generated from your entries and sent automatically</strong><br/>
+        When you submit this application, Form B (Student Enrolment Confirmation) will be pre-filled with your details and emailed to your institution's registrar at
+        <strong id="preview_inst_email">—</strong> for confirmation.
+        You can review Form B before submitting.
+      </div>
+
+      <div class="form-nav">
+        <button class="btn-back" onclick="goStep(3)">← Back</button>
+        <div style="font-size:10px;color:#777;margin-bottom:12px;font-style:italic;">
+          <strong>Note:</strong> If you see anything in the preview that seems inaccurate, misleading, or wrong, please let us know by submitting a Support Ticket or emailing education.support@gov.deline.ca before finalizing.
+        </div>
+        <div style="display:flex;gap:10px;">
+          <button class="btn-back" type="button" onclick="openFormBPreview()" style="border-color:#1a3a6b;color:#1a3a6b;">👁 Preview Form B</button>
+          <button class="btn-next" onclick="submitApplication()">Submit Application &amp; Send Form B &nbsp;→</button>
+        </div>
+      </div>
+    </div><!-- end step4 -->
+
+    <!-- Success screen -->
+    <div class="success-screen" id="successScreen">
+      <div class="success-icon">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#1a6b3a" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="20 6 9 17 4 12"/>
+        </svg>
+      </div>
+      <h2>Application Submitted Successfully</h2>
+      <div class="success-ref" id="refNumber">Reference: APP-2025-0001</div>
+      <p>Your Form A has been received by the Department of Education, Délı̨nę Got'ı̨nę Government.</p>
+      <div class="success-notice">
+        <strong>📧 Form B has been automatically sent</strong><br/>
+        An enrollment confirmation request (Form B) has been pre-filled with your details and emailed to your institution's registrar at <strong id="confirm_inst_email">—</strong>.
+        The institution has <strong>14 days</strong> to complete and return it. You will be notified once it is received.
+      </div>
+      <p style="font-size:10.5px;color:#888;margin-top:8px;">
+        Questions? Contact: <strong>education.support@gov.deline.ca</strong> · Ph: (867) 589-3515 ext. 1110
+      </p>
+    </div>
+
+  </div><!-- end form-body -->
+</div><!-- end browser-chrome -->
+
+<!-- ══ FORM B PREVIEW MODAL ══ -->
+<div class="modal-overlay" id="formBModal">
+  <div class="modal-box">
+    <div class="modal-header">
+      <h3>Form B — Student Enrolment Confirmation (Auto-Generated Preview)</h3>
+      <button class="modal-close" onclick="closeFormBModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-b-notice">
+        This form has been <strong>automatically pre-filled</strong> from your Form A entries. It will be emailed to your institution's registrar upon submission. The institution completes the lower section and returns it — <strong>they do not need a portal account</strong>.<br/><br/>
+        <strong style="color:#111;">Privacy Note:</strong> Your Social Insurance Number and Date of Birth have been omitted from this form to protect your identity. If you see anything here that seems inaccurate, misleading, or wrong, please let us know before submitting.
+      </div>
+
+      <!-- Bursary type -->
+      <div style="border:1px solid #ddd;border-radius:3px;padding:10px 12px;margin-bottom:14px;background:#fafafa;font-size:11px;color:#333;">
+        <strong>Applying for:</strong> <span id="fb_bursary_display">—</span>
+      </div>
+
+      <!-- Student section (auto-filled, read-only) -->
+      <div class="formb-section">To Be Completed by Student (Auto-filled from your Form A)</div>
+      <table class="formb-table">
+        <tr>
+          <td colspan="2">
+            <span class="fb-label">First and Last Name</span>
+            <span class="fb-val" id="fb_name">—</span>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <span class="fb-label">Student ID</span>
+            <span class="fb-val" id="fb_student_id">—</span>
+          </td>
+          <td>
+            <span class="fb-label">Phone</span>
+            <span class="fb-val" id="fb_phone">—</span>
+          </td>
+          <td>
+            <span class="fb-label">Email</span>
+            <span class="fb-val" id="fb_email">—</span>
+          </td>
+        </tr>
+        <tr>
+          <td colspan="2">
+            <span class="fb-label">Note to Registrar</span>
+            <span class="fb-val" style="color:#888;font-size:9.5px;">Student has verified their identity and contact information via DGG Student Portal.</span>
+          </td>
+        </tr>
+      </table>
+
+      <!-- Institution section (to be completed by registrar) -->
+      <div class="formb-section" style="margin-top:16px;">To Be Completed by Education Institution (Sent to Registrar)</div>
+      <div style="font-size:10.5px;color:#555;border:1px solid #ddd;border-top:none;padding:8px 12px;background:#fffbe6;">
+        This form is used to confirm the student's enrolment to be eligible for the DGG Student Financial Support Program. Please return to address below or to student.
+      </div>
+      <table class="formb-table">
+        <tr>
+          <td>
+            <span class="fb-label">Name of Institution (pre-filled)</span>
+            <span class="fb-val" id="fb_institution">—</span>
+          </td>
+          <td>
+            <span class="fb-label">Name of Student's Program (pre-filled)</span>
+            <span class="fb-val" id="fb_program">—</span>
+          </td>
+        </tr>
+        <tr>
+          <td colspan="2" class="cb-val">
+            <span style="font-size:11px;color:#555;margin-right:8px;">Student's course load (Registrar to confirm):</span>
+            ☐ Full-Time &nbsp;&nbsp; ☐ Part-Time
+          </td>
+        </tr>
+        <tr>
+          <td colspan="2" class="cb-val">
+            Working towards: ☐ Certificate &nbsp; ☐ Diploma &nbsp; ☐ Degree &nbsp; ☐ Masters &nbsp; ☐ Doctorate &nbsp; ☐ Other: ___________
+          </td>
+        </tr>
+        <tr>
+          <td colspan="2" class="cb-val">
+            Semester Enrolled: ☐ Fall &nbsp; ☐ Winter &nbsp; ☐ Spring &nbsp; ☐ Summer &nbsp;&nbsp; Year ______ of ______ year program
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <span class="fb-label">Semester Start Date (pre-filled)</span>
+            <span class="fb-val" id="fb_start">—</span>
+          </td>
+          <td>
+            <span class="fb-label">Semester End Date (pre-filled)</span>
+            <span class="fb-val" id="fb_end">—</span>
+          </td>
+          <td>
+            <span class="fb-label">Tuition $ (pre-filled)</span>
+            <span class="fb-val" id="fb_tuition">—</span>
+          </td>
+          <td>
+            <span class="fb-label">Books $</span>
+            <span class="fb-val" id="fb_books">—</span>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <span class="fb-label">Institution Email (pre-filled)</span>
+            <span class="fb-val" id="fb_inst_email">—</span>
+          </td>
+          <td>
+            <span class="fb-label">Institution Phone (pre-filled)</span>
+            <span class="fb-val" id="fb_inst_phone">—</span>
+          </td>
+          <td colspan="2">
+            <span class="fb-label">Other Fees (Explanation Required) $</span>
+            <span class="fb-val">_______________</span>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <span class="fb-label">Title of Official</span>
+            <span class="fb-val" style="color:#bbb;">To be completed by institution</span>
+          </td>
+          <td>
+            <span class="fb-label">Signature of Official</span>
+            <span class="fb-val" style="color:#bbb;">To be completed by institution</span>
+          </td>
+          <td>
+            <span class="fb-label">Date (YYYY/MM/DD)</span>
+            <span class="fb-val" style="color:#bbb;">To be completed by institution</span>
+          </td>
+        </tr>
+        <tr>
+          <td colspan="3">
+            <span class="fb-label">Additional Registrar Notes (Pre-submission)</span>
+            <span class="fb-val" style="color:#bbb;">To be completed by institution (e.g. discrepancies, inaccuracies, partial loads)</span>
+          </td>
+        </tr>
+      </table>
+
+      <div style="margin-top:14px;background:#f5f5f5;border:1px solid #ddd;border-radius:3px;padding:10px 14px;font-size:10px;color:#555;text-align:center;line-height:1.7;">
+        <strong>Please submit application and supporting documents to:</strong><br/>
+        Department of Education, Délı̨nę Got'ı̨nę Government<br/>
+        P.O. Box 156 Délı̨nę, NT X0E 0G0<br/>
+        Email: education.support@gov.deline.ca · Ph: (867) 589-3515 ext. 1110
+      </div>
+    </div>
+    <div class="modal-footer">
+      <div class="modal-footer-note">
+        This form will be automatically emailed to your institution's registrar at <strong id="fb_modal_email">—</strong> when you submit Form A. They have 14 days to complete and return it.
+      </div>
+      <button class="btn-confirm" onclick="closeFormBModal()">Close Preview</button>
+    </div>
+  </div>
+</div>
+
+<script>
+
+  var currentStep = 1;
+  var totalSteps  = 4;
+  var mappedStream = ''; // Will be set by checkEligibility
+
+  function openFormBPreview() {
+    syncFormB();
+    document.getElementById('formBModal').classList.add('open');
+    document.body.style.overflow = 'hidden';
+  }
+
+  function closeFormBModal() {
+    document.getElementById('formBModal').classList.remove('open');
+    document.body.style.overflow = '';
+  }
+
+  function goStep(n) {
+    if (n < 1 || n > totalSteps) return;
+    document.getElementById('step' + currentStep).classList.remove('active');
+    document.getElementById('tab'  + currentStep).classList.remove('active');
+    if (currentStep < n) document.getElementById('tab' + currentStep).classList.add('done');
+    currentStep = n;
+    document.getElementById('step' + currentStep).classList.add('active');
+    document.getElementById('tab'  + currentStep).classList.add('active');
+    // URL update
+    var urls = [
+      'portal.deline.ca/apply/form-a/student-info',
+      'portal.deline.ca/apply/form-a/program',
+      'portal.deline.ca/apply/form-a/funding',
+      'portal.deline.ca/apply/form-a/documents'
+    ];
+    document.getElementById('urlBar').textContent = urls[n - 1];
+    window.scrollTo(0, 0);
+  }
+
+  function v(id) {
+    var el = document.getElementById(id);
+    return el ? (el.value || el.textContent || '').trim() : '';
+  }
+
+  function rb(name) {
+    var els = document.getElementsByName(name);
+    for (var i = 0; i < els.length; i++) { if (els[i].checked) return els[i].value; }
+    return '';
+  }
+
+  function syncFormB() {
+    // Student section
+    var first = v('s_first'), last = v('s_last');
+    document.getElementById('fb_name').textContent       = (first || last) ? (first + ' ' + last).trim() : '—';
+    document.getElementById('fb_phone').textContent      = v('s_phone')      || '—';
+    document.getElementById('fb_email').textContent      = v('s_email')      || '—';
+    document.getElementById('fb_student_id').textContent = v('s_student_id') || '—';
+    // Institution section
+    document.getElementById('fb_institution').textContent = v('p_institution') || '—';
+    document.getElementById('fb_program').textContent     = v('p_program')     || '—';
+    document.getElementById('fb_start').textContent       = v('p_sem_start_actual') || '—';
+    document.getElementById('fb_end').textContent         = v('p_sem_end_actual')       || '—';
+    document.getElementById('fb_tuition').textContent     = v('p_tuition')     || '—';
+    document.getElementById('fb_books').textContent       = v('p_books')       || '—';
+    document.getElementById('fb_inst_email').textContent  = v('inst_email')    || '—';
+    document.getElementById('fb_inst_phone').textContent  = v('inst_phone')    || '—';
+    // Bursary Mapping (Automated)
+    var btMap = {
+      'PSSSP': "Federal PSSSP / UCEPP Funding",
+      'DGGR':  "Dene Gha Gok'ǝ Réhkw'I (DGGR) Top-up",
+      'BOTH':  "PSSSP + DGGR Top-up"
+    };
+    document.getElementById('fb_bursary_display').textContent = btMap[mappedStream] || 'Pending Eligibility Check';
+    // Email previews
+    var ie = v('inst_email') || '—';
+    document.getElementById('preview_inst_email').textContent  = ie;
+    document.getElementById('fb_modal_email').textContent      = ie;
+  }
+
+  function openFormBPreview() {
+    syncFormB();
+    document.getElementById('formBModal').classList.add('open');
+  }
+
+  function closeFormBModal() {
+    document.getElementById('formBModal').classList.remove('open');
+  }
+
+  function submitApplication() {
+    // Basic validation
+    if (!v('s_first') || !v('s_last')) {
+      alert('Please complete Step 1: First and Last Name are required.');
+      goStep(1); return;
+    }
+    if (!v('p_institution') || !v('p_program')) {
+      alert('Please complete Step 2: Institution and Program are required.');
+      goStep(2); return;
+    }
+    if (!v('inst_email')) {
+      alert('Please complete Step 2: Registrar email is required to send Form B.');
+      goStep(2); return;
+    }
+    if (!v('s_bank_holder') || !v('s_bank_transit') || !v('s_bank_account')) {
+      alert('Please complete Step 3: Banking details are required for direct deposit.');
+      goStep(3); return;
+    }
+    if (!v('sig_name') || !v('sig_date')) {
+      alert('Please complete Step 4: Signature and date are required.');
+      return;
+    }
+
+    syncFormB();
+    var ref = 'APP-' + new Date().getFullYear() + '-' + String(Math.floor(Math.random() * 9000) + 1000);
+    document.getElementById('refNumber').textContent       = 'Reference: ' + ref;
+    document.getElementById('confirm_inst_email').textContent = v('inst_email');
+
+    // Hide all steps and show success
+    for (var i = 1; i <= totalSteps; i++) {
+      document.getElementById('step' + i).classList.remove('active');
+    }
+    document.getElementById('stepBar').style.display = 'none';
+    document.getElementById('successScreen').classList.add('show');
+    document.getElementById('urlBar').textContent = 'portal.deline.ca/apply/form-a/submitted';
+  }
+
+  function triggerUpload(id) {
+    document.getElementById(id).click();
+  }
+
+  function markUploaded(id) {
+    var el = document.getElementById('status_' + id);
+    if (el) el.style.display = 'inline';
+  }
+
+  function checkEligibility() {
+    var q1Elem = document.querySelector('input[name="elig_q1"]:checked');
+    var q2Elem = document.querySelector('input[name="elig_q2"]:checked');
+    var q3Elem = document.querySelector('input[name="elig_q3"]:checked');
+    var q5Elem = document.querySelector('input[name="elig_q5"]:checked');
+    var q6Elem = document.querySelector('input[name="elig_q6"]:checked');
+    var q4 = document.getElementById('elig_q4').value;
+
+    var q1 = q1Elem ? q1Elem.value : null;
+    var q2 = q2Elem ? q2Elem.value : null;
+    var q3 = q3Elem ? q3Elem.value : null;
+    var q5 = q5Elem ? q5Elem.value : null;
+    var q6 = q6Elem ? q6Elem.value : null;
+
+    var box = document.getElementById('elig_result_box');
+    var title = document.getElementById('elig_result_title');
+    var desc = document.getElementById('elig_result_desc');
+    var btn = document.querySelector('#step1 .btn-next');
+    
+    // Hide inline notes initially
+    var q3Note = document.getElementById('q3_note');
+    var q4Note = document.getElementById('q4_note');
+    if(q3Note) q3Note.style.display = 'none';
+    if(q4Note) q4Note.style.display = 'none';
+
+    // Show inline notes conditionally (SFA Denial)
+    if (q4 === 'nwt' && q3 === 'no' && q3Note) {
+      q3Note.style.display = 'block';
+      q3Note.innerHTML = '<strong>Note:</strong> As an NWT resident, you are expected to apply for GNWT SFA first. Since you are not receiving SFA, you will be required to upload proof of denial or your Sahtu Dene Council ISETS/UCEPP approval context later.';
+    }
+    
+    var showBox = true;
+    var isApproved = false;
+    var style = 'info';
+
+    // Rule out dealbreakers first
+    if (q5 === 'no') {
+      style = 'error';
+      title.innerText = 'Intake Stopped - Institution Not Accredited';
+      desc.innerHTML = 'Based on your answers, you do not qualify for DGG funding support at this time. DGG funding requires enrollment at an Accredited Institution. Please contact the DGG Education Department if you have questions.';
+    } else if (q6 === 'no') {
+      if (q1 === 'yes' || q2 === 'yes') {
+        style = 'error';
+        title.innerText = 'Intake Stopped - Program Requirements';
+        desc.innerHTML = 'Based on your answers, you are not eligible for any funding administered by the DGG Education Department. You may wish to contact the Sahtu Dene Council to ask about other funding programs.';
+      } else {
+        style = 'error';
+        title.innerText = 'Intake Stopped';
+        desc.innerHTML = 'Based on your answers, you do not qualify for DGG funding support at this time. Please contact the DGG Education Department if you have questions or believe you should still qualify.';
+      }
+    } else if (q1 === 'no' && q2 === 'no' && q1 !== null && q2 !== null) {
+      style = 'error';
+      title.innerText = 'Intake Stopped';
+      desc.innerHTML = 'Based on your answers, you do not qualify for DGG funding support at this time. Please contact the DGG Education Department if you have questions or believe you should still qualify.';
+    } else if (q1 && q2 && q3 && q4 && q5 === 'yes' && q6 === 'yes') {
+      // Run advanced routing (All 6 questions answered positively)
+      isApproved = true;
+      if (q4 === 'nwt') {
+        if (q2 === 'yes') {
+          style = 'success';
+          title.innerText = 'Action Required: DGGR Top-Up Funding';
+          desc.innerHTML = 'Based on your status as an NWT resident and Délı̨nę Beneficiary, you qualify for <strong>DGGR Top-Up Funding</strong>. Your primary funding must be requested through GNWT SFA first.';
+          mappedStream = 'DGGR';
+        } else {
+          style = 'error';
+          title.innerText = 'Intake Stopped';
+          desc.innerHTML = 'Based on your answers, you do not qualify for DGG funding support at this time. Please contact the DGG Education Department if you have questions or believe you should still qualify.';
+          mappedStream = '';
+        }
+      } else if (q4 === 'other' || q4 === 'outside') {
+        if (q1 === 'yes') {
+          style = 'success';
+          title.innerText = 'Eligible: Federal PSSSP / UCEPP Funding';
+          desc.innerHTML = 'Because you live outside the NWT and are registered with the Délı̨nę First Nation, you qualify for the <strong>Federal Post-Secondary Student Support Program (PSSSP)</strong>. ' + (q2 === 'yes' ? 'You have also qualified for the DGGR Top-Up.' : '');
+          mappedStream = (q2 === 'yes') ? 'BOTH' : 'PSSSP';
+        } else if (q2 === 'yes') {
+          style = 'success';
+          title.innerText = 'Eligible: DGGR Top-Up Only';
+          desc.innerHTML = 'Because you are not registered with the Délı̨nę First Nation (Indian Act), you do not qualify for Federal PSSSP. However, as a Délı̨nę Beneficiary, you qualify for <strong>DGGR Top-Up Funding</strong>.';
+          mappedStream = 'DGGR';
+        } else {
+           style = 'error';
+           title.innerText = 'Intake Stopped';
+           desc.innerHTML = 'Based on your answers, you do not qualify for DGG funding support at this time. Please contact the DGG Education Department if you have questions or believe you should still qualify.';
+           mappedStream = '';
+        }
+      }
+    } else {
+      style = 'info';
+      title.innerText = 'Eligibility Incomplete';
+      desc.innerHTML = 'Please answer all 6 questions above to determine your eligibility and proceed.';
+    }
+
+    if (showBox) {
+      box.style.display = 'block';
+      if (style === 'error') {
+        box.style.background = '#fff2f2'; box.style.borderColor = '#ffcccc'; box.style.color = '#cc0000';
+      } else if (style === 'success') {
+        box.style.background = '#e8f4e8'; box.style.borderColor = '#b8e0b8'; box.style.color = '#1a6b3a';
+      } else if (style === 'warning') {
+        box.style.background = '#fffbe6'; box.style.borderColor = '#ffe58f'; box.style.color = '#875914';
+      } else if (style === 'info') {
+        box.style.background = '#f8f9fa'; box.style.borderColor = '#dee2e6'; box.style.color = '#495057';
+      }
+    }
+
+    if (btn) {
+      if (isApproved) {
+        btn.disabled = false; btn.style.background = ''; btn.style.cursor = 'pointer'; btn.style.opacity = '1';
+      } else {
+        btn.disabled = true; btn.style.background = '#bbb'; btn.style.cursor = 'not-allowed'; btn.style.opacity = '0.7';
+      }
+    }
+  }
+
+  // Run on load to lock the form initially
+  window.addEventListener('DOMContentLoaded', checkEligibility);
+
+  // Keep Form B in sync as user types
+  document.addEventListener('input',  syncFormB);
+  document.addEventListener('change', syncFormB);
+
+  // Close modal on overlay click
+  document.getElementById('formBModal').addEventListener('click', function(e) {
+    if (e.target === this) closeFormBModal();
+  });
+</script>
+</body>
+</html>

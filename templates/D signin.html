@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Student Login — Deline Got'ine Government</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+      background: #e8e8e8;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    .browser-chrome {
+      width: 100%;
+      max-width: 700px;
+      background: #fff;
+      border-radius: 8px;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.18);
+      overflow: hidden;
+    }
+
+    .browser-bar {
+      background: #f0f0f0;
+      border-bottom: 1px solid #d0d0d0;
+      padding: 8px 12px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .browser-dots { display: flex; gap: 5px; }
+    .browser-dots span {
+      width: 10px; height: 10px;
+      border-radius: 50%;
+      background: #c8c8c8;
+      display: block;
+    }
+
+    .browser-url {
+      flex: 1;
+      background: #fff;
+      border: 1px solid #d0d0d0;
+      border-radius: 4px;
+      padding: 3px 10px;
+      font-size: 11px;
+      color: #555;
+    }
+
+    .page-layout {
+      display: flex;
+      min-height: 520px;
+    }
+
+    /* Left dark panel */
+    .left-panel {
+      width: 210px;
+      flex-shrink: 0;
+      background: #1a1a1a;
+      padding: 24px 20px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      color: #fff;
+    }
+
+    .brand-name {
+      font-size: 11px;
+      font-weight: 600;
+      color: #fff;
+      line-height: 1.4;
+      margin-bottom: 2px;
+    }
+
+    .brand-sub {
+      font-size: 9px;
+      color: #888;
+      margin-bottom: 18px;
+      line-height: 1.4;
+    }
+
+    .left-headline h1 {
+      font-size: 20px;
+      font-weight: 700;
+      color: #fff;
+      line-height: 1.2;
+      margin-bottom: 10px;
+    }
+
+    .left-headline p {
+      font-size: 9px;
+      color: #888;
+      line-height: 1.5;
+      margin-bottom: 14px;
+    }
+
+    .feature-list { list-style: none; display: flex; flex-direction: column; gap: 4px; }
+    .feature-list li {
+      font-size: 9px;
+      color: #888;
+      padding-left: 14px;
+      position: relative;
+    }
+    .feature-list li::before {
+      content: '—';
+      position: absolute;
+      left: 0;
+      color: #888;
+    }
+
+    .left-footer { margin-top: 20px; }
+    .left-footer a {
+      font-size: 8.5px;
+      color: #5a8a6a;
+      text-decoration: underline;
+      display: block;
+      margin-bottom: 3px;
+    }
+    .left-footer p { font-size: 8px; color: #666; }
+
+    /* Right form panel */
+    .right-panel {
+      flex: 1;
+      padding: 28px 32px;
+      background: #fff;
+    }
+
+    .form-title {
+      font-size: 22px;
+      font-weight: 400;
+      color: #111;
+      margin-bottom: 4px;
+    }
+
+    .form-sub {
+      font-size: 11px;
+      color: #555;
+      margin-bottom: 22px;
+    }
+    .form-sub a { color: #111; text-decoration: none; font-weight: 500; }
+    .form-sub a:hover { text-decoration: underline; }
+
+    .field-group { margin-bottom: 14px; }
+
+    .field-label {
+      font-size: 10px;
+      font-weight: 600;
+      color: #333;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      margin-bottom: 5px;
+      display: block;
+    }
+
+    .field-input {
+      width: 100%;
+      padding: 9px 10px;
+      border: 1px solid #ccc;
+      border-radius: 3px;
+      font-size: 12px;
+      color: #333;
+      outline: none;
+      font-family: inherit;
+      background: #fff;
+    }
+    .field-input::placeholder { color: #bbb; }
+    .field-input:focus { border-color: #555; }
+
+    .password-wrap { position: relative; }
+    .password-wrap .field-input { padding-right: 32px; }
+
+    .pw-toggle {
+      position: absolute;
+      right: 9px;
+      top: 50%;
+      transform: translateY(-50%);
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: #999;
+      padding: 0;
+      line-height: 1;
+    }
+
+    .forgot-link {
+      display: block;
+      text-align: right;
+      font-size: 11px;
+      color: #333;
+      text-decoration: none;
+      margin-top: 5px;
+    }
+    .forgot-link:hover { text-decoration: underline; }
+
+    .btn-signin {
+      width: 100%;
+      padding: 10px;
+      background: #1a1a1a;
+      color: #fff;
+      border: none;
+      border-radius: 3px;
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      cursor: pointer;
+      margin-top: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      font-family: inherit;
+    }
+    .btn-signin:hover { background: #333; }
+
+    .btn-signup {
+      width: 100%;
+      padding: 10px;
+      background: #fff;
+      color: #1a1a1a;
+      border: 1px solid #ccc;
+      border-radius: 3px;
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      cursor: pointer;
+      margin-top: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      font-family: inherit;
+    }
+    .btn-signup:hover { background: #f5f5f5; border-color: #999; }
+
+    .help-text {
+      text-align: center;
+      font-size: 11px;
+      color: #555;
+      margin-top: 14px;
+    }
+    .help-text a { color: #333; font-weight: 500; text-decoration: none; }
+    .help-text a:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+
+  <div class="browser-chrome">
+    <div class="browser-bar">
+      <div class="browser-dots">
+        <span></span><span></span><span></span>
+      </div>
+      <div class="browser-url">portal.deline.ca/login</div>
+    </div>
+
+    <div class="page-layout">
+
+      <!-- Left dark panel -->
+      <div class="left-panel">
+        <div>
+          <div class="brand-name">Deline Got'ine Government</div>
+          <div class="brand-sub">Student Financial Support Program</div>
+          <div class="left-headline">
+            <h1>Welcome to your Education Portal</h1>
+            <p>Apply for funding, track status, manage your support—all in one place.</p>
+            <ul class="feature-list">
+              <li>No downloads required</li>
+              <li>Funding calculated automatically</li>
+              <li>Real-time application tracking</li>
+              <li>Progress never lost on disconnect</li>
+            </ul>
+          </div>
+        </div>
+        <div class="left-footer">
+          <a href="signup.html">Apply for Student Funding</a>
+          <p>(867) 589-3515 ext. 1110</p>
+        </div>
+      </div>
+
+      <!-- Right form panel -->
+      <div class="right-panel">
+        <div class="form-title">Sign In</div>
+        <div class="form-sub">No account? <a href="signup.html">Create one →</a></div>
+
+        <div class="field-group">
+          <label class="field-label" for="email">Email or Phone</label>
+          <input class="field-input" id="email" type="text" placeholder="Enter email or phone number" autocomplete="username" />
+        </div>
+
+        <div class="field-group">
+          <label class="field-label" for="password">Password</label>
+          <div class="password-wrap">
+            <input class="field-input" id="password" type="password" placeholder="••••••••••" autocomplete="current-password" />
+            <button class="pw-toggle" onclick="togglePw()" type="button" aria-label="Show password">
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                <circle cx="12" cy="12" r="3"/>
+              </svg>
+            </button>
+          </div>
+          <a href="forgot-password.html" class="forgot-link">Forgot password?→</a>
+        </div>
+
+        <button class="btn-signin" type="button" onclick="window.location='student-dashboard-full.html'">SIGN IN &nbsp;→</button>
+        <button class="btn-signup" type="button" onclick="window.location='signup.html'">SIGN UP &nbsp;→</button>
+
+        <div style="margin-top:32px; text-align:center; border-top:1px solid #eee; padding-top:24px;">
+          <div style="font-size:11.5px; font-weight:600; color:#333; margin-bottom:8px;">Continue without account</div>
+          <div style="font-size:10.5px; color:#555; margin-bottom:12px; line-height:1.4;">Apply for a one-off award as a guest.</div>
+          <div style="display:flex; gap:8px; justify-content:center;">
+            <a href="form-hardship.html" style="font-size:10.5px; font-weight:600; color:#111; text-decoration:none; padding:7px 12px; border:1px solid #ccc; border-radius:3px; background:#fafafa; transition:background 0.2s;" onmouseover="this.style.background='#eee'" onmouseout="this.style.background='#fafafa'">Hardship</a>
+            <a href="form-f-practicum.html" style="font-size:10.5px; font-weight:600; color:#111; text-decoration:none; padding:7px 12px; border:1px solid #ccc; border-radius:3px; background:#fafafa; transition:background 0.2s;" onmouseover="this.style.background='#eee'" onmouseout="this.style.background='#fafafa'">Practicum</a>
+            <a href="form-g-graduation.html" style="font-size:10.5px; font-weight:600; color:#111; text-decoration:none; padding:7px 12px; border:1px solid #ccc; border-radius:3px; background:#fafafa; transition:background 0.2s;" onmouseover="this.style.background='#eee'" onmouseout="this.style.background='#fafafa'">Graduation</a>
+          </div>
+          <div style="font-size:10px; color:#888; margin-top:12px; line-height:1.5;">Guest records can be later merged to a full profile by staff<br/>using your SIN or Treaty/Beneficiary number.</div>
+        </div>
+
+        <div class="help-text">
+          Need help? <a href="mailto:education.support@gov.deline.ca">Contact Student Support Worker</a>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <script>
+    function togglePw() {
+      const input = document.getElementById('password');
+      input.type = input.type === 'password' ? 'text' : 'password';
+    }
+  </script>
+
+</body>
+</html>
