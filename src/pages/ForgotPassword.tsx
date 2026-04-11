@@ -16,11 +16,6 @@ const ForgotPassword: React.FC = () => {
   return (
     <div className="auth-root">
       <div className="browser-chrome">
-        {/* <div className="browser-bar">
-          <div className="browser-dots"><span></span><span></span><span></span></div>
-          <div className="browser-url">portal.deline.ca/forgot-password</div>
-        </div> */}
-
         <div className="page-layout">
           {/* Left dark panel */}
           <div className="left-panel">

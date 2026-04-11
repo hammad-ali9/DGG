@@ -117,42 +117,34 @@ const SignUp: React.FC = () => {
 
   return (
     <div className="auth-root">
-      <div className="browser-chrome">
-        <div className="browser-bar">
-          <div className="browser-dots"><span></span><span></span><span></span></div>
-          <div className="browser-url">portal.deline.ca/register</div>
-        </div>
+      <div className="page-layout">
+        {/* Left panel */}
+        <div className="left-panel">
+          <div className="left-top">
+            <div className="brand-name">Deline Got'ine Government</div>
+            <div className="brand-sub">Student Financial Support Program</div>
+            <div className="create-title" style={{ marginTop: '24px' }}>Create Your Account</div>
 
-        <div className="page-layout">
-          {/* Left panel */}
-          <div className="left-panel">
-            <div className="left-top">
-              <div className="create-title">Create Your Account</div>
-              <div className="create-sub">Less than 5 minutes · Email optional</div>
-
-              <ul className="step-list">
-                <li className="active">
-                  <div className="step-num">1</div> Basic Information
-                </li>
-              </ul>
-
-              <div className="left-notes">
-                <span>Email is optional</span>
-                <span>Progress saves after each step</span>
-                <span>Return anytime with any login method</span>
-              </div>
-            </div>
-
-            <div className="progress-dots">
-              <span className="active"></span>
-            </div>
+            <ul className="step-list" style={{ marginTop: '16px' }}>
+              <li className="active">
+                <div className="step-num">1</div> Basic Information
+              </li>
+            </ul>
           </div>
 
-          {/* Right panel */}
-          <div className="right-panel">
-            <div className="step-indicator">Account Creation</div>
-            <div className="form-title">Tell us about yourself</div>
-            <div className="form-sub">Already have an account? <Link to="/signin">Sign in →</Link></div>
+          <div className="left-footer">
+             <div className="progress-dots">
+               <span className="active"></span>
+             </div>
+             <p style={{ marginTop: '12px', color: 'rgba(255,255,255,0.4)', fontSize: '11px' }}>Step 1 of 1</p>
+          </div>
+        </div>
+
+        {/* Right panel */}
+        <div className="right-panel">
+          <div className="step-indicator">Account Creation</div>
+          <div className="form-title">Tell us about yourself</div>
+          <div className="form-sub">Already have an account? <Link to="/signin">Sign in →</Link></div>
 
             {/* ── Eligibility Check Section ── */}
             <div className="section-divider" style={{ marginTop: 0 }}>Eligibility Check</div>
@@ -247,7 +239,7 @@ const SignUp: React.FC = () => {
                 <div className="field-row">
                   <div className="field-group">
                     <label className="field-label">Email Address</label>
-                    <input className="field-input" type="email" placeholder="e.g. marie@email.com (optional)" />
+                    <input className="field-input" type="email" placeholder="e.g. marie@email.com" />
                   </div>
                   <div className="field-group">
                     <label className="field-label">Phone Number <span className="required">*</span></label>
@@ -318,19 +310,6 @@ const SignUp: React.FC = () => {
               </div>
             )}
 
-            <div style={{ marginTop: '32px', textAlign: 'center', borderTop: '1px solid #eee', paddingTop: '24px' }}>
-              <div style={{ fontSize: '11.5px', fontWeight: 600, color: '#333', marginBottom: '12px' }}>Applying for a one-off award?</div>
-              <div className="guest-buttons-row">
-                <Link to="/forms/hardship" className="guest-btn">Hardship</Link>
-                <Link to="/forms/practicum" className="guest-btn">Practicum</Link>
-                <Link to="/forms/graduation" className="guest-btn">Graduation</Link>
-              </div>
-              <div style={{ fontSize: '10px', color: '#888', marginTop: '12px', lineHeight: 1.5 }}>
-                <strong>Continue without an account</strong> for these short-term applications.
-              </div>
-            </div>
-
-          </div>
         </div>
       </div>
     </div>

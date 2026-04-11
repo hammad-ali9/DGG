@@ -72,6 +72,7 @@ const Dashboard: React.FC = () => {
   const [isNotificationsRead, setIsNotificationsRead] = useState(false);
   const [showToast, setShowToast] = useState<string | null>(null);
   const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(null);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -84,12 +85,18 @@ const Dashboard: React.FC = () => {
   const submitMockForm = (label: string) => {
     setShowToast(`✓ ${label} submitted · You will receive an email confirmation`);
     setCurrentView('applications');
+    setIsMobileMenuOpen(false);
+  };
+
+  const handleNavClick = (view: DashboardView) => {
+    setCurrentView(view);
+    setIsMobileMenuOpen(false);
   };
 
   const renderSidebarNav = (id: DashboardView, label: string, icon: React.ReactNode) => (
     <div
       className={`snav ${currentView === id ? 'active' : ''}`}
-      onClick={() => setCurrentView(id)}
+      onClick={() => handleNavClick(id)}
     >
       <span className="snav-icon">{icon}</span> {label}
       {id === 'notifications' && !isNotificationsRead && <span className="notif-dot"></span>}
@@ -97,12 +104,69 @@ const Dashboard: React.FC = () => {
   );
 
   return (
-    <div className="dashboard-root">
+    <div className={`dashboard-root ${isMobileMenuOpen ? 'mobile-menu-open' : ''}`}>
+      {/* Mobile Overlay */}
+      {isMobileMenuOpen && (
+        <div className="sidebar-overlay" onClick={() => setIsMobileMenuOpen(false)}></div>
+      )}
+
+      {/* Sidebar */}
+      <div className={`sidebar ${isMobileMenuOpen ? 'open' : ''}`}>
+
+        <div className="user-block" onClick={() => handleNavClick('profile')} style={{ cursor: 'pointer' }}>
+          <div className="user-avatar">MB</div>
+          <div className="user-name">Marie Beaulieu</div>
+          <div className="user-meta">ID: DGG-00412 · Student</div>
+        </div>
+
+        <div className="sidebar-section-title">Main</div>
+        {renderSidebarNav('dashboard', 'Dashboard', <Icons.Home />)}
+        {renderSidebarNav('profile', 'My Profile', <Icons.Info />)}
+        {renderSidebarNav('applications', 'My Applications', <Icons.Files />)}
+        {renderSidebarNav('payments', 'My Payments', <Icons.Payments />)}
+        {renderSidebarNav('documents', 'My Documents', <Icons.Documents />)}
+        {renderSidebarNav('notifications', 'Notifications', <Icons.Bell />)}
+
+        <div className="sidebar-divider"></div>
+
+        <div className="sidebar-section-title">Applications</div>
+        {renderSidebarNav('formA', 'Form A — New Student', <Icons.Files />)}
+        {renderSidebarNav('formC', 'Form C — Continuing', <Icons.Files />)}
+        {renderSidebarNav('formD', 'Form D — Change of Info', <Icons.Files />)}
+
+        <div className="sidebar-divider"></div>
+
+        <div className="sidebar-section-title">Claims</div>
+        {renderSidebarNav('formE', 'Form E — Travel Claim', <Icons.Files />)}
+        {renderSidebarNav('formF', 'Form F — Practicum Award', <Icons.Files />)}
+        {renderSidebarNav('formG', 'Form G — Grad Award', <Icons.Files />)}
+        {renderSidebarNav('formH', 'Form H — Appeal', <Icons.Files />)}
+
+        <div className="sidebar-divider"></div>
+
+        <div className="sidebar-section-title">Special</div>
+        {renderSidebarNav('scholarship', 'Academic Scholarship', <Icons.Files />)}
+        {renderSidebarNav('hardship', 'Hardship Bursary', <Icons.Files />)}
+
+        <div className="sidebar-divider"></div>
+
+        <div className="sidebar-section-title">Other</div>
+        {renderSidebarNav('help', 'Help & FAQ', <Icons.Help />)}
+        <div className="snav" onClick={() => navigate('/signin')}>
+          <span className="snav-icon"><Icons.LogOut /></span> Sign Out
+        </div>
+      </div>
+
       <div className="dashboard-shell">
         {/* Top Nav */}
         <div className="top-nav">
-          <div className="top-nav-brand">Délı̨nę Got'ı̨nę Government — Student Portal</div>
-          <div className="top-nav-links">
+          <div className="top-nav-left">
+            <button className="mobile-menu-btn" onClick={() => setIsMobileMenuOpen(true)}>
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+            </button>
+            <div className="top-nav-brand">Délı̨nę Got'ı̨nę Government — Student Portal</div>
+          </div>
+          <div className="round-menu-bar desktop-only">
             <span className="top-nav-link" onClick={() => setCurrentView('dashboard')}>Home</span>
             <span className="top-nav-link" onClick={() => setCurrentView('applications')}>My Applications</span>
             <span className="top-nav-link" onClick={() => setCurrentView('payments')}>Payments</span>
@@ -112,66 +176,19 @@ const Dashboard: React.FC = () => {
           </div>
         </div>
 
-        <div className="main-shell">
-          {/* Sidebar */}
-          <div className="sidebar">
-            <div className="user-block" onClick={() => setCurrentView('profile')} style={{ cursor: 'pointer' }}>
-              <div className="user-avatar">MB</div>
-              <div className="user-name">Marie Beaulieu</div>
-              <div className="user-meta">ID: DGG-00412 · Student</div>
-            </div>
-
-            <div className="sidebar-section-title">Main</div>
-            {renderSidebarNav('dashboard', 'Dashboard', <Icons.Home />)}
-            {renderSidebarNav('profile', 'My Profile', <Icons.Info />)}
-            {renderSidebarNav('applications', 'My Applications', <Icons.Files />)}
-            {renderSidebarNav('payments', 'My Payments', <Icons.Payments />)}
-            {renderSidebarNav('documents', 'My Documents', <Icons.Documents />)}
-            {renderSidebarNav('notifications', 'Notifications', <Icons.Bell />)}
-
-            <div className="sidebar-divider"></div>
-
-            <div className="sidebar-section-title">Applications</div>
-            {renderSidebarNav('formA', 'Form A — New Student', <Icons.Files />)}
-            {renderSidebarNav('formC', 'Form C — Continuing', <Icons.Files />)}
-            {renderSidebarNav('formD', 'Form D — Change of Info', <Icons.Files />)}
-
-            <div className="sidebar-divider"></div>
-
-            <div className="sidebar-section-title">Claims</div>
-            {renderSidebarNav('formE', 'Form E — Travel Claim', <Icons.Files />)}
-            {renderSidebarNav('formF', 'Form F — Practicum Award', <Icons.Files />)}
-            {renderSidebarNav('formG', 'Form G — Grad Award', <Icons.Files />)}
-            {renderSidebarNav('formH', 'Form H — Appeal', <Icons.Files />)}
-
-            <div className="sidebar-divider"></div>
-
-            <div className="sidebar-section-title">Special</div>
-            {renderSidebarNav('scholarship', 'Academic Scholarship', <Icons.Files />)}
-            {renderSidebarNav('hardship', 'Hardship Bursary', <Icons.Files />)}
-
-            <div className="sidebar-divider"></div>
-
-            <div className="sidebar-section-title">Other</div>
-            {renderSidebarNav('help', 'Help & FAQ', <Icons.Help />)}
-            <div className="snav" onClick={() => navigate('/signin')}>
-              <span className="snav-icon"><Icons.LogOut /></span> Sign Out
-            </div>
+        {/* Main Content Area */}
+        <div className="main-content">
+          {/* Deadline Ticker */}
+          <div className="deadline-bar">
+            <span className="dl-item"><span className="dl-label">Fall deadline</span><span className="dl-date">Aug 1</span></span>
+            <span className="dl-sep">·</span>
+            <span className="dl-item"><span className="dl-label">Winter</span><span className="dl-date">Dec 1</span></span>
+            <span className="dl-sep">·</span>
+            <span className="dl-item"><span className="dl-label">Travel claims</span><span className="dl-urgent">within 30 days of travel</span></span>
           </div>
 
-          {/* Main Content */}
-          <div className="main-content">
-            {/* Deadline Ticker */}
-            <div className="deadline-bar">
-              <span className="dl-item"><span className="dl-label">Fall deadline</span><span className="dl-date">Aug 1</span></span>
-              <span className="dl-sep">·</span>
-              <span className="dl-item"><span className="dl-label">Winter</span><span className="dl-date">Dec 1</span></span>
-              <span className="dl-sep">·</span>
-              <span className="dl-item"><span className="dl-label">Travel claims</span><span className="dl-urgent">within 30 days of travel</span></span>
-            </div>
-
-            {/* View Container */}
-            <div className="view-container">
+          {/* View Container */}
+          <div className="view-container">
               
               {/* ── DASHBOARD VIEW ── */}
               {currentView === 'dashboard' && (
@@ -494,14 +511,13 @@ const Dashboard: React.FC = () => {
             </div>
           </div>
         </div>
-      </div>
 
-      {/* Toast */}
-      <div className={`toast ${showToast ? 'show' : ''}`}>
-        {showToast}
+        {/* Toast */}
+        <div className={`toast ${showToast ? 'show' : ''}`}>
+          {showToast}
+        </div>
       </div>
-    </div>
-  );
-};
+    );
+  };
 
 export default Dashboard;

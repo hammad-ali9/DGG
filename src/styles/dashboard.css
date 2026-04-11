@@ -1,62 +1,102 @@
-/* Dashboard specific styles refined for professional icons and full views */
+/* Dashboard specific styles – matches Netlify build exactly */
 
 .dashboard-root {
-  background: #f8fafc;
+  background: transparent;
   min-height: 100vh;
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
 }
 
+/* dashboard-shell wraps top-nav + the sidebar/content row */
 .dashboard-shell {
-  width: 100%;
-  flex: 1;
-  background: #fff;
-  overflow: hidden;
   display: flex;
   flex-direction: column;
+  flex: 1;
 }
+
+/* removed main-shell */
 
 /* ── Transitions ── */
 .fade-in {
   animation: fadeIn 0.4s ease-out;
 }
+
 @keyframes fadeIn {
-  from { opacity: 0; transform: translateY(4px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 /* ── Top Nav ── */
 .top-nav {
-  background: #fff;
-  border-bottom: 1px solid #edf2f7;
-  padding: 12px 24px;
+  background: #000;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  padding: 8px 24px;
+  min-height: 60px;
   display: flex;
   justify-content: space-between;
   align-items: center;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.top-nav-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-left: 24px;
+}
+
+.mobile-menu-toggle {
+  display: none;
+  background: none;
+  border: none;
+  color: #fff;
+  padding: 8px;
+  cursor: pointer;
+  margin-left: -8px;
+}
+
+.round-menu-bar {
+  background: #1a1a1a;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 40px;
+  padding: 4px 12px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
 }
 
 .top-nav-brand {
   font-size: 12px;
   font-weight: 700;
-  color: #1a202c;
+  color: #a0aec0;
   letter-spacing: -0.01em;
 }
 
-.top-nav-links {
-  display: flex;
-  gap: 20px;
-}
-
 .top-nav-link {
-  font-size: 11px;
-  font-weight: 500;
-  color: #718096;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #a0aec0;
   cursor: pointer;
-  transition: color 0.15s;
+  padding: 6px 14px;
+  border-radius: 20px;
+  display: flex;
+  align-items: center;
+  transition: all 0.2s;
 }
 
 .top-nav-link:hover {
-  color: #1a202c;
+  color: #111;
+  background: #e5a662;
 }
 
 .nav-badge {
@@ -65,37 +105,158 @@
   font-size: 8px;
   font-weight: 700;
   border-radius: 10px;
-  padding: 1px 6px;
-  margin-left: 4px;
+  padding: 2px 6px;
+  margin-left: 6px;
 }
 
-/* ── Main Layout ── */
-.main-shell {
-  display: flex;
-  flex: 1;
-  min-height: 700px;
-}
-
+/* ── Sidebar ── */
 .sidebar {
   width: 200px;
-  background-color: #1a202c;
+  background-color: #000;
+  border-right: 1px solid rgba(255, 255, 255, 0.05);
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
   padding-bottom: 24px;
+  z-index: 1001;
+  transition: transform 0.3s ease-in-out;
+  min-height: 100vh;
 }
 
+.sidebar-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  z-index: 1000;
+}
+
+/* ── Main Content ── */
 .main-content {
   flex: 1;
-  background: #f8fafc;
+  background: transparent;
   display: flex;
   flex-direction: column;
 }
 
+.mobile-menu-btn {
+  display: none;
+  background: none;
+  border: none;
+  color: #fff;
+  padding: 8px;
+  cursor: pointer;
+  margin-left: -8px;
+}
+
+@media (max-width: 768px) {
+  .mobile-menu-btn {
+    display: block;
+  }
+
+  .desktop-only {
+    display: none !important;
+  }
+
+  .sidebar {
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    transform: translateX(-100%);
+    box-shadow: 20px 0 50px rgba(0, 0, 0, 0.5);
+    z-index: 1001;
+  }
+
+  .sidebar.open {
+    transform: translateX(0);
+  }
+
+  .sidebar-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(4px);
+    z-index: 1000;
+  }
+
+  .top-nav-brand {
+    font-size: 11px;
+    max-width: 180px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .kpi-row {
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .kpi-card {
+    width: 100%;
+  }
+
+  .form-cards-grid {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  .view-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 16px;
+  }
+
+  .view-header .btn-primary {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .welcome-alert {
+    flex-direction: column;
+    padding: 20px;
+  }
+
+  .welcome-btn {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-top: 16px;
+  }
+
+  .form-btn {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .journey-progress-bar {
+    flex-direction: column;
+    gap: 16px;
+    padding: 16px;
+  }
+
+  .phase-info {
+    width: 100%;
+  }
+
+  .next-milestone {
+    text-align: left;
+    align-items: flex-start;
+    width: 100%;
+  }
+}
+
 /* ── User Block ── */
 .user-block {
-  padding: 24px 20px 16px;
-  border-bottom: 1px solid #2d3748;
+  padding: 20px 20px 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
 }
 
 .user-avatar {
@@ -106,7 +267,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-bottom: 12px;
+  margin-bottom: 6px;
   font-size: 14px;
   font-weight: 600;
   color: #edf2f7;
@@ -126,7 +287,7 @@
 
 /* ── Sidebar Nav ── */
 .sidebar-section-title {
-  padding: 16px 20px 4px;
+  padding: 4px 20px 2px;
   font-size: 9px;
   font-weight: 700;
   letter-spacing: 0.12em;
@@ -154,25 +315,25 @@
 }
 
 .snav:hover {
-  background: #2d3748;
+  background: #1a1a1a;
   color: #fff;
 }
 
 .snav.active {
-  background: #2d3748;
-  border-left: 3px solid #63b3ed;
+  background: #1a1a1a;
+  border-left: 3px solid #e5a662;
   color: #fff;
   font-weight: 600;
 }
 
 .snav.active .snav-icon {
-  color: #63b3ed;
+  color: #e5a662;
   opacity: 1;
 }
 
 .sidebar-divider {
   height: 1px;
-  background: #2d3748;
+  background: rgba(255, 255, 255, 0.05);
   margin: 12px 20px;
 }
 
@@ -184,9 +345,9 @@
   margin-left: auto;
 }
 
-/* ── Content Sections ── */
+/* ── Deadline Bar ── */
 .deadline-bar {
-  background: #1a202c;
+  background: #000;
   padding: 10px 24px;
   display: flex;
   align-items: center;
@@ -222,6 +383,7 @@
   color: #4a5568;
 }
 
+/* ── Content Area ── */
 .view-container {
   padding: 24px;
   flex: 1;
@@ -243,15 +405,15 @@
 
 /* ── Welcome Alert ── */
 .welcome-alert {
-  background: linear-gradient(135deg, #ebf8ff 0%, #fff 100%);
-  border: 1px solid #bee3f8;
+  background: linear-gradient(135deg, #fffcf8 0%, #fff 100%);
+  border: 1px solid #f2ede7;
   border-radius: 12px;
   padding: 20px 24px;
   margin-bottom: 28px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  box-shadow: 0 4px 12px rgba(49, 130, 206, 0.05);
+  box-shadow: 0 4px 12px rgba(229, 166, 98, 0.05);
 }
 
 .welcome-alert-main {
@@ -265,11 +427,11 @@
   height: 44px;
   border-radius: 50%;
   background: #fff;
-  color: #3182ce;
+  color: #e5a662;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
 }
 
 .welcome-text {
@@ -279,18 +441,18 @@
 .welcome-title {
   font-size: 14px;
   font-weight: 700;
-  color: #2b6cb0;
+  color: #312720;
   margin-bottom: 4px;
 }
 
 .welcome-desc {
   font-size: 12px;
-  color: #4a5568;
+  color: #837467;
   line-height: 1.6;
 }
 
 .welcome-btn {
-  background: #3182ce;
+  background: #e5a662;
   padding: 10px 20px;
 }
 
@@ -307,7 +469,7 @@
   border: 1px solid #edf2f7;
   border-radius: 8px;
   padding: 16px 20px;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02);
 }
 
 .kpi-val {
@@ -326,7 +488,7 @@
   letter-spacing: 0.1em;
 }
 
-/* ── Journey Journey ── */
+/* ── Journey Section ── */
 .journey-section {
   margin-top: 32px;
 }
@@ -361,7 +523,7 @@
   margin-top: 2px;
 }
 
-/* ── Journey Progress Indicator ── */
+/* ── Journey Progress ── */
 .journey-progress-bar {
   background: #fff;
   border: 1px solid #e2e8f0;
@@ -371,7 +533,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
 }
 
 .phase-info {
@@ -412,7 +574,8 @@
   background: #e2e8f0;
 }
 
-.pip.completed, .pip.active {
+.pip.completed,
+.pip.active {
   background: #38a169;
 }
 
@@ -467,7 +630,9 @@
   gap: 20px;
 }
 
-.paper-icon { font-size: 32px; }
+.paper-icon {
+  font-size: 32px;
+}
 
 .paper-text-title {
   font-size: 16px;
@@ -492,8 +657,10 @@
 
 /* ── Form Cards ── */
 .form-card {
-  background: #fff;
-  border: 2px solid #edf2f7;
+  background: rgba(255, 255, 255, 0.55);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.98);
   border-radius: 10px;
   padding: 18px 20px;
   cursor: pointer;
@@ -505,12 +672,12 @@
 .form-card:hover {
   border-color: #cbd5e0;
   transform: translateY(-2px);
-  box-shadow: 0 8px 24px rgba(0,0,0,0.06);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.06);
 }
 
 .form-card.active-step {
-  border-color: #38a169;
-  background: #f0fff4;
+  background: #fffcf8;
+  border-color: #e5a662;
 }
 
 .form-card-header {
@@ -521,8 +688,8 @@
 }
 
 .form-tag {
-  background: #1a202c;
-  color: #fff;
+  background: #e5a662;
+  color: #111;
   font-size: 9px;
   font-weight: 700;
   letter-spacing: 0.08em;
@@ -531,14 +698,17 @@
   padding: 2px 8px;
 }
 
-.gray-tag { background: #e2e8f0; color: #4a5568; }
+.gray-tag {
+  background: #f2ede7;
+  color: #837467;
+}
 
 .recommended-tag {
   font-size: 8px;
   font-weight: 700;
-  color: #2f855a;
+  color: #d89146;
   background: #fff;
-  border: 1px solid #38a169;
+  border: 1px solid #e5a662;
   border-radius: 4px;
   padding: 2px 8px;
   display: flex;
@@ -576,7 +746,7 @@
   border-radius: 10px;
   margin-bottom: 24px;
   overflow: hidden;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02);
 }
 
 .sec-head {
@@ -670,7 +840,7 @@
 
 .faq-chevron.open {
   transform: rotate(90deg);
-  color: #3182ce;
+  color: #e5a662;
 }
 
 .faq-a {
@@ -716,21 +886,21 @@
   color: #2d3748;
 }
 
-/* ── UI Components ── */
+/* ── Buttons ── */
 .btn-primary {
-  background: #1a202c;
-  color: #fff;
+  background: #e5a662;
+  color: #111;
   border: none;
   border-radius: 6px;
   font-size: 11.5px;
-  font-weight: 600;
+  font-weight: 700;
   padding: 8px 16px;
   cursor: pointer;
   transition: all 0.2s;
 }
 
 .btn-primary:hover {
-  background: #2d3748;
+  background: #d89146;
   transform: translateY(-1px);
 }
 

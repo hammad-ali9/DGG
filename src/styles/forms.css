@@ -1,4 +1,4 @@
-/* DGG Form Wizard Design System */
+/* DGG Form Wizard Design System – matches Netlify build exactly */
 
 .wizard-integrated {
   background: transparent;
@@ -19,7 +19,8 @@
 
 /* ── Wizard Header ── */
 .wizard-header {
-  background: #1a1a1a;
+  background: #000;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
   padding: 12px 24px;
   display: flex;
   justify-content: space-between;
@@ -47,7 +48,11 @@
   border-bottom: 1px solid #e2e8f0;
   padding: 0 24px;
   display: flex;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
+
+.step-tabs::-webkit-scrollbar { display: none; }
 
 .step-tab {
   display: flex;
@@ -64,8 +69,8 @@
 }
 
 .step-tab.active {
-  color: #1a1a1a;
-  border-bottom-color: #1a1a1a;
+  color: #e5a662;
+  border-bottom-color: #e5a662;
   font-weight: 600;
 }
 
@@ -82,14 +87,28 @@
 }
 
 .step-tab.active .step-circle {
-  border-color: #1a1a1a;
-  color: #1a1a1a;
+  border-color: #e5a662;
+  color: #e5a662;
 }
 
 /* ── Form Content ── */
 .wizard-content {
   padding: 32px 40px;
   flex: 1;
+}
+
+@media (max-width: 768px) {
+  .wizard-content { padding: 24px 20px; }
+  .form-grid tr, .form-grid td { display: block; width: 100% !important; padding: 0 !important; }
+  .form-grid td { margin-bottom: 16px; }
+  .wizard-footer { flex-direction: column-reverse; gap: 12px; padding: 20px; }
+  .wizard-btn-next, .wizard-btn-back { width: 100%; margin: 0 !important; }
+  .wizard-header { padding: 12px 20px; }
+  .wizard-header-right { display: none; }
+  .doc-grid { grid-template-columns: 1fr; }
+  .step-tabs { padding: 0 16px; }
+  .step-tab { padding: 12px 12px 12px 0; margin-right: 8px; font-size: 10px; }
+  .wizard-panel-title { font-size: 16px; }
 }
 
 .wizard-panel-title {
@@ -206,12 +225,6 @@
   gap: 10px;
 }
 
-.doc-name {
-  font-size: 12px;
-  font-weight: 600;
-  color: #2d3748;
-}
-
 .doc-meta {
   font-size: 10px;
   color: #718096;
@@ -228,8 +241,8 @@
 }
 
 .wizard-btn-next {
-  background: #1a1a1a;
-  color: #fff;
+  background: #e5a662;
+  color: #111;
   border: none;
   border-radius: 4px;
   padding: 10px 24px;
@@ -241,6 +254,12 @@
   display: flex;
   align-items: center;
   gap: 8px;
+  transition: all 0.2s;
+}
+
+.wizard-btn-next:hover {
+  background: #d89146;
+  transform: translateY(-1px);
 }
 
 .wizard-btn-back {
@@ -270,9 +289,10 @@
 /* ── Form B Preview Modal ── */
 .modal-overlay {
   position: fixed;
-  top: 0; left: 0; right: 0; bottom: 0;
+  inset: 0;
   background: rgba(0,0,0,0.6);
   backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -293,12 +313,13 @@
 }
 
 .modal-header {
-  background: #1a1a1a;
+  background: #111;
   padding: 14px 24px;
   display: flex;
   justify-content: space-between;
   align-items: center;
   color: #fff;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
 }
 
 .modal-header h3 {
@@ -336,8 +357,8 @@
 }
 
 .formb-section {
-  background: #1a1a1a;
-  color: #fff;
+  background: #312720;
+  color: #e5a662;
   font-size: 10px;
   font-weight: 700;
   padding: 6px 12px;
@@ -399,8 +420,8 @@
 }
 
 .btn-confirm {
-  background: #1a1a1a;
-  color: #fff;
+  background: #e5a662;
+  color: #111;
   border: none;
   border-radius: 4px;
   padding: 10px 24px;
@@ -408,4 +429,7 @@
   font-weight: 700;
   text-transform: uppercase;
   cursor: pointer;
+  transition: all 0.2s;
 }
+
+.btn-confirm:hover { background: #d89146; }
