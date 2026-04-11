@@ -1,9 +1,10 @@
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
-import './App.css';
 import SignIn from './pages/SignIn';
 import SignUp from './pages/SignUp';
 import ForgotPassword from './pages/ForgotPassword';
 import Dashboard from './pages/Dashboard';
+import StaffDashboard from './pages/StaffDashboard';
+import InternalSignIn from './pages/InternalSignIn';
 import HardshipBursary from './pages/Forms/HardshipBursary';
 import FormF from './pages/Forms/FormF';
 import FormG from './pages/Forms/FormG';
@@ -22,20 +23,23 @@ function App() {
         <Route path="/forgot-password" element={<ForgotPassword />} />
         {/* Student Dashboard (Unified Shell) */}
         <Route path="/dashboard" element={<Dashboard />} />
+        {/* Staff Portal */}
+        <Route path="/staff" element={<StaffDashboard />} />
+        <Route path="/internal/login" element={<InternalSignIn />} />
 
         {/* Guest Application Routes */}
         <Route path="/forms/hardship" element={
-          <StandaloneFormWrapper title="Hardship Award">
+          <StandaloneFormWrapper>
             {(props) => <HardshipBursary {...props} />}
           </StandaloneFormWrapper>
         } />
         <Route path="/forms/practicum" element={
-          <StandaloneFormWrapper title="Practicum Award">
+          <StandaloneFormWrapper>
             {(props) => <FormF {...props} />}
           </StandaloneFormWrapper>
         } />
         <Route path="/forms/graduation" element={
-          <StandaloneFormWrapper title="Graduation Award">
+          <StandaloneFormWrapper>
             {(props) => <FormG {...props} />}
           </StandaloneFormWrapper>
         } />

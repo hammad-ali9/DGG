@@ -1,11 +1,9 @@
 import React, { useState } from 'react';
 import '../styles/profile.css';
 
-interface StudentProfileProps {
-  onUpdateInfo: () => void;
-}
+interface StudentProfileProps {}
 
-const StudentProfile: React.FC<StudentProfileProps> = ({ onUpdateInfo }) => {
+const StudentProfile: React.FC<StudentProfileProps> = () => {
   const [activeModal, setActiveModal] = useState<string | null>(null);
   const [showUPI, setShowUPI] = useState(false);
 

@@ -14,99 +14,103 @@ const SignIn: React.FC = () => {
   return (
     <div className="auth-root">
       <div className="page-layout">
-        {/* Left dark panel */}
+        {/* Left Branding Panel */}
         <div className="left-panel">
           <div>
-            <div className="brand-name">Deline Got'ine Government</div>
+            <div className="brand-name">Deline Got'ı̨nę Government</div>
             <div className="brand-sub">Student Financial Support Program</div>
             <div className="left-headline">
-              <h1>Welcome to your Education Portal</h1>
-              <p>Apply for funding, track status, manage your support—all in one place.</p>
-              <ul className="feature-list">
-                <li>No downloads required</li>
-                <li>Funding calculated automatically</li>
-                <li>Real-time application tracking</li>
-                <li>Progress never lost on disconnect</li>
+              <h1>Empowering your <br/><span style={{ color: 'var(--admin-accent, #e5a662)' }}>Academic Journey</span></h1>
+              <p>Apply for student funding, track your application status, and manage your education future in one secure place.</p>
+              
+              <ul className="feature-list" style={{ marginTop: '32px' }}>
+                <li>No software downloads required</li>
+                <li>Real-time eligibility calculation</li>
+                <li>Digital application tracking</li>
+                <li>Persistent progress saving</li>
               </ul>
             </div>
           </div>
+
           <div className="left-footer">
-            <Link to="/signup">Apply for Student Funding</Link>
-            <p>(867) 589-3515 ext. 1110</p>
+            <div style={{ fontSize: '12px', color: '#e5a662', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '8px' }}>Support Center</div>
+            <p style={{ color: 'rgba(255,255,255,0.6)', lineHeight: '1.5' }}>
+              We're here to help you succeed. Contact your Student Support Worker if you have any questions.
+            </p>
+            <div style={{ marginTop: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <div style={{ width: '8px', height: '8px', background: '#38a169', borderRadius: '50%' }}></div>
+              <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)' }}>Support Online: Mon–Fri, 9am–5pm</span>
+            </div>
           </div>
         </div>
 
-        {/* Right form panel */}
+        {/* Right Form Card */}
         <div className="right-panel">
-          <div className="form-title">Sign In</div>
-          <div className="form-sub">No account? <Link to="/signup">Create one →</Link></div>
+          <div className="form-title">Student Access</div>
+          <div className="form-sub">New student? <Link to="/signup">Create your portal account →</Link></div>
 
           <div className="field-group">
-            <label className="field-label" htmlFor="email">Email or Phone</label>
+            <label className="field-label" htmlFor="email" style={{ color: '#64748b' }}>Email or Phone</label>
             <input
               className="field-input"
               id="email"
               type="text"
-              placeholder="Enter email or phone number"
+              placeholder="e.g. marie.beaulieu@email.com"
               autoComplete="username"
+              style={{ background: '#fff' }}
             />
           </div>
 
           <div className="field-group">
-            <label className="field-label" htmlFor="password">Password</label>
+            <label className="field-label" htmlFor="password" style={{ color: '#64748b' }}>Password</label>
             <div className="password-wrap">
               <input
                 className="field-input"
                 id="password"
                 type={showPassword ? "text" : "password"}
-                placeholder="••••••••••"
+                placeholder="••••••••••••"
                 autoComplete="current-password"
+                style={{ background: '#fff' }}
               />
               <button
                 className="pw-toggle"
                 onClick={togglePassword}
                 type="button"
                 aria-label={showPassword ? "Hide password" : "Show password"}
+                style={{ color: '#64748b' }}
               >
-                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  {showPassword ? (
-                    <>
-                      <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
-                      <line x1="1" y1="1" x2="23" y2="23" />
-                    </>
-                  ) : (
-                    <>
-                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-                      <circle cx="12" cy="12" r="3" />
-                    </>
-                  )}
-                </svg>
+                {showPassword ? 'Hide' : 'Show'}
               </button>
             </div>
-              <Link to="/forgot-password" data-forgot-link className="forgot-link">Forgot password? →</Link>
+            <div style={{ textAlign: 'right', marginTop: '8px' }}>
+              <Link to="/forgot-password" style={{ fontSize: '12px', color: '#64748b', textDecoration: 'none', fontWeight: '600' }}>Forgot password? →</Link>
+            </div>
           </div>
 
           <button 
             className="btn-auth-primary" 
             type="button"
             onClick={() => navigate('/dashboard')}
+            style={{ marginTop: '24px' }}
           >
-            SIGN IN &nbsp;→
+            SIGN IN TO PORTAL &nbsp;→
           </button>
-          <Link to="/signup" className="btn-auth-secondary" style={{ textDecoration: 'none' }}>SIGN UP &nbsp;→</Link>
 
-          <div style={{ marginTop: '32px', textAlign: 'center', borderTop: '1px solid #eee', paddingTop: '24px' }}>
+          <div style={{ marginTop: '32px', textAlign: 'center', borderTop: '1px solid #f1f5f9', paddingTop: '24px' }}>
+            <div style={{ fontSize: '11px', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '16px' }}>One-Off Applications</div>
             <button 
               type="button"
               onClick={() => setShowGuestModal(true)}
-              style={{ background: 'none', border: 'none', color: '#d89146', fontWeight: 600, cursor: 'pointer', fontSize: '13px' }}
+              style={{ background: '#f8fafc', border: '1px solid #e2e8f0', color: '#1a1a1a', fontWeight: 700, cursor: 'pointer', fontSize: '12px', padding: '10px 16px', borderRadius: '8px', width: '100%' }}
             >
-              Applying for a one-off award? Learn More →
+              Applying for a single award? Learn More →
             </button>
           </div>
 
-          <div className="help-text">
-            Need help? <a href="mailto:education.support@gov.deline.ca">Contact Student Support Worker</a>
+          <div style={{ marginTop: '40px', textAlign: 'center' }}>
+            <Link to="/internal/login" style={{ fontSize: '11px', color: '#94a3b8', textDecoration: 'none', fontWeight: '8400', opacity: 0.8, letterSpacing: '0.05em' }}>
+              INTERNAL ADMINISTRATION ACCESS →
+            </Link>
           </div>
         </div>
       </div>

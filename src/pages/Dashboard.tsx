@@ -503,9 +503,7 @@ const Dashboard: React.FC = () => {
 
               {/* \u2500\u2500 PROFILE VIEW \u2500\u2500 */}
               {currentView === 'profile' && (
-                <StudentProfile 
-                  onUpdateInfo={() => setCurrentView('formD')} 
-                />
+                <StudentProfile />
               )}
 
             </div>

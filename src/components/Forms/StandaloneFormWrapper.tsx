@@ -4,10 +4,9 @@ import '../../styles/auth.css';
 
 interface StandaloneFormWrapperProps {
   children: (props: { onBack: () => void; onComplete: () => void }) => React.ReactNode;
-  title: string;
 }
 
-const StandaloneFormWrapper: React.FC<StandaloneFormWrapperProps> = ({ children, title }) => {
+const StandaloneFormWrapper: React.FC<StandaloneFormWrapperProps> = ({ children }) => {
   const navigate = useNavigate();
 
   const handleBack = () => {

@@ -1,73 +1,63 @@
-# React + TypeScript + Vite
+# Deline Got’ı̨nę Government (DGG) Student Portal
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A modern, high-fidelity administrative and student portal for the Deline Got’ı̨nę Government, built with React, TypeScript, and Vite.
 
-Currently, two official plugins are available:
+## 📁 Project Structure
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+The project is organized into a clean, modular architecture:
 
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```text
+DGG-src/
+├── public/                 # Static assets (backgrounds, legacy icons)
+├── src/
+│   ├── assets/             # Component-level images and assets
+│   ├── components/         # Reusable UI components
+│   │   └── Forms/          # Generic form wrappers and logic
+│   ├── pages/              # Primary view components
+│   │   ├── Forms/          # Specific DGG application forms (A-H)
+│   │   ├── Dashboard.tsx   # Student Dashboard
+│   │   ├── StaffDashboard.tsx # Unified Staff/Director Management
+│   │   └── SignIn/SignUp/  # Authentication views
+│   ├── styles/             # Modular CSS for themes and layouts
+│   ├── App.tsx             # Main routing logic
+│   └── main.tsx            # Application entry point
+├── eslint.config.js        # Linting rules
+├── index.html              # HTML entry point
+├── package.json            # Dependencies and scripts
+├── tsconfig.json           # TypeScript configuration
+└── vite.config.ts          # Vite build configuration
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+## 🚀 Getting Started
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+### Prerequisites
+- Node.js (v18+)
+- npm
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+### Installation
+1. Install dependencies:
+   ```bash
+   npm install
+   ```
+
+2. Start the development server:
+   ```bash
+   npm run dev
+   ```
+
+3. Build for production:
+   ```bash
+   npm run build
+   ```
+
+## 🎨 Design System
+The portal uses a strict **Black-and-Gold** aesthetic:
+- **Primary Color (Gold)**: `#e5a662`
+- **Secondary Color (Dark)**: `#1e293b`
+- **Background**: High-fidelity overlays with subtle glassmorphism.
+
+## 🛠️ Key Features
+- **Unified SSW & Director Dashboards**: Simplified governance tools for application review and approval.
+- **Form Wizardry**: Responsive, multi-step application forms based on DGG policy.
+- **Reporting Engine**: Advanced financial and enrollment analytics for governance staff.
+- **Authentication**: Secure student and internal staff sign-in flows.

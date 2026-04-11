@@ -118,25 +118,33 @@ const SignUp: React.FC = () => {
   return (
     <div className="auth-root">
       <div className="page-layout">
-        {/* Left panel */}
+        {/* Left Branding Panel */}
         <div className="left-panel">
-          <div className="left-top">
-            <div className="brand-name">Deline Got'ine Government</div>
+          <div>
+            <div className="brand-name">Deline Got'ı̨nę Government</div>
             <div className="brand-sub">Student Financial Support Program</div>
-            <div className="create-title" style={{ marginTop: '24px' }}>Create Your Account</div>
-
-            <ul className="step-list" style={{ marginTop: '16px' }}>
-              <li className="active">
-                <div className="step-num">1</div> Basic Information
-              </li>
-            </ul>
+            <div className="left-headline" style={{ marginTop: '48px' }}>
+              <h1 style={{ fontSize: '28px' }}>Your future <br/><span style={{ color: 'var(--admin-accent, #e5a662)' }}>Starts Here.</span></h1>
+              <p style={{ fontSize: '13px' }}>Establish your student profile to access government funding streams, track payments, and verify your eligibility for academic awards.</p>
+              
+              <div className="create-title" style={{ marginTop: '40px', color: '#e5a662', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Setup Progress</div>
+              <ul className="step-list" style={{ marginTop: '16px' }}>
+                <li className="active">
+                  <div className="step-num">1</div> 
+                  <div>
+                    <div style={{ fontSize: '12px', fontWeight: '700' }}>Eligibility Check</div>
+                    <div style={{ fontSize: '10px', opacity: 0.6 }}>Confirm program requirements</div>
+                  </div>
+                </li>
+              </ul>
+            </div>
           </div>
 
           <div className="left-footer">
              <div className="progress-dots">
                <span className="active"></span>
              </div>
-             <p style={{ marginTop: '12px', color: 'rgba(255,255,255,0.4)', fontSize: '11px' }}>Step 1 of 1</p>
+             <p style={{ marginTop: '12px', color: 'rgba(255,255,255,0.4)', fontSize: '10px' }}>Secure Application Portal v2.0</p>
           </div>
         </div>
 
