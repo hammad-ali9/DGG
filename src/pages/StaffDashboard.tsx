@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import API from '../api/client';
 import '../styles/staff.css';
 
 // Admin Icons
@@ -28,53 +29,109 @@ type ViewMode = 'dashboard' | 'applications' | 'detail' | 'policy' | 'reports' |
 
 const StaffDashboard: React.FC = () => {
   const location = useLocation();
-  const [role] = useState<'ssw' | 'director'>((location.state as any)?.role || 'ssw');
-  const [currentView, setCurrentView] = useState<ViewMode>((location.state as any)?.role === 'director' ? 'director-queue' : 'dashboard');
+  const [role, setRole] = useState<'ssw' | 'director'>((localStorage.getItem('dgg_role') as any) === 'director' ? 'director' : 'ssw');
+  const [currentView, setCurrentView] = useState<ViewMode>(role === 'director' ? 'director-queue' : 'dashboard');
   const [selectedAppId, setSelectedAppId] = useState<string | null>(null);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [decisionNotes, setDecisionNotes] = useState('');
   const [fiscalYear] = useState('2024-2025');
   const navigate = useNavigate();
 
-  // Mock Data
-  const [applications, setApplications] = useState([
-    { 
-      id: 'APP-2025-0847', 
-      name: 'Marie Beaulieu', 
-      program: 'U of Calgary — B.Ed Yr 3', 
-      date: 'Today · 9:45am', 
-      status: 'review', 
-      semester: 'Fall 2025', 
-      amount: 12400, 
-      formB: 'awaiting',
-      flags: ['OVERRIDE'],
-      sswSubmitted: 'Today · 9:45am',
-      institution: 'U of Calgary',
-      major: 'Bachelor of Education — Year 3',
-      enrollment: 'Full-Time',
-      dependents: '2 dependents',
-      sfaStatus: 'No',
-      formBStatus: 'Received & Verified',
-      recommendation: 'Recommend Approval — amounts as calculated. Tuition confirmed at $5,000 per institutional invoice.'
-    },
-    { 
-      id: 'APP-2025-0844', 
-      name: 'Sarah Baton', 
-      program: 'Aurora College — Nursing Yr 1', 
-      date: 'Yesterday · 3:12pm', 
-      status: 'review', 
-      semester: 'Fall 2025', 
-      amount: 9800, 
-      formB: 'not-sent',
-      flags: ['EXCEPTION'],
-      sswSubmitted: 'Yesterday · 3:12pm'
-    },
-    { id: 'APP-2025-0840', name: 'Raymond Tuktoo', program: 'NAIT — Trades Yr 1', date: 'Feb 28 · 10:05am', status: 'review', semester: 'Fall 2025', amount: 7200, formB: 'not-sent', sswSubmitted: 'Feb 28 · 10:05am' },
-    { id: 'APP-2025-0810', name: 'Lisa Modeste', program: 'U of Alberta — Education Yr 3', date: 'Feb 26 · 2:00pm', status: 'review', semester: 'Fall 2025', amount: 14100, formB: 'received', sswSubmitted: 'Feb 26 · 2:00pm' },
-    { id: 'APP-2025-0835', name: 'Thomas Kakfwi', program: 'U of Victoria — Social Work Yr 2', date: 'Feb 24 · 11:30am', status: 'review', semester: 'Fall 2025', amount: 10600, formB: 'awaiting', flags: ['OVERRIDE'], sswSubmitted: 'Feb 24 · 11:30am' },
-    { id: 'APP-2025-0798', name: 'James Baton', program: 'Dalhousie — Engineering Yr 1', date: 'Feb 20', status: 'approved', semester: 'Fall 2025', amount: 11500, formB: 'received', decisionBy: 'K. Baton', decisionWhen: 'Feb 22' },
-    { id: 'APP-2025-0770', name: 'David Baton', program: 'NAIT — Welding Certificate', date: 'Feb 10', status: 'denied', semester: 'Fall 2025', amount: 0, formB: 'received', decisionBy: 'K. Baton', decisionWhen: 'Feb 15' },
-  ]);
+  const [applications, setApplications] = useState<any[]>([]);
+  const [notifications, setNotifications] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchApplications = async () => {
+    try {
+      const data = await API.getSubmissions();
+      setApplications(data);
+      
+      const statsData = await API.getDashboardStats();
+      setBackendStats(statsData);
+
+      const notifsData = await API.getNotifications();
+      setNotifications(notifsData);
+
+      // Verify role from profile to ensure absolute sync
+      const me = await API.getMe();
+      if (me.role === 'director' && role !== 'director') {
+        setRole('director');
+        localStorage.setItem('dgg_role', 'director');
+      } else if (me.role === 'admin' && role !== 'ssw') {
+        setRole('ssw');
+        localStorage.setItem('dgg_role', 'admin');
+      }
+    } catch (err: any) {
+      console.error('Data sync failed:', err);
+      // If it's a 401, the Axios interceptor will handle redirect
+      setError(err.message || 'Failed to sync with database');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // ── POLLING FOR REAL-TIME UPDATES ──
+  useEffect(() => {
+    fetchApplications();
+    const interval = setInterval(fetchApplications, 5000); // 5-second polling
+    return () => clearInterval(interval);
+  }, []);
+
+  const [backendStats, setBackendStats] = useState<any>(null);
+
+  const getStats = () => {
+    if (backendStats) {
+      const formStats = backendStats.submissions_by_form || {};
+      const statusStats = backendStats.submissions_by_status || {};
+      
+      return {
+        totalApps: backendStats.total_submissions || 0,
+        approvedAmount: backendStats.total_funding_approved || 0,
+        underReview: (statusStats.pending || 0) + (statusStats.reviewed || 0) + (statusStats.forwarded || 0),
+        activeStudents: backendStats.total_students || 0,
+        pssspCount: formStats['FormA'] || 0,
+        otherCount: (backendStats.total_submissions || 0) - (formStats['FormA'] || 0),
+        pssspPercent: backendStats.total_submissions > 0 ? ((formStats['FormA'] || 0) / backendStats.total_submissions) * 100 : 0,
+        livingApps: statusStats.pending || 0,
+        travelApps: formStats['FormE'] || 0,
+        scholarshipApps: formStats['scholarship'] || 0
+      };
+    }
+
+    return { totalApps: 0, approvedAmount: 0, underReview: 0, activeStudents: 0, pssspCount: 0, otherCount: 0, pssspPercent: 0, livingApps: 0, travelApps: 0, scholarshipApps: 0 };
+  };
+
+  const stats = getStats();
+
+  const [staffNote, setStaffNote] = useState('');
+
+  const handleDecision = async (status: 'accepted' | 'rejected' | 'forwarded') => {
+    if (!selectedAppId) return;
+    try {
+      await API.updateSubmissionStatus(Number(selectedAppId), status);
+      setShowConfirmModal(false);
+      setDecisionNotes('');
+      setCurrentView(role === 'director' ? 'director-queue' : 'applications');
+      fetchApplications(); // Refresh list
+    } catch (err: any) {
+      alert(err.message || 'Action failed');
+    }
+  };
+
+  const handleAddNote = async () => {
+    if (!selectedAppId || !staffNote.trim()) return;
+    setIsLoading(true);
+    try {
+      await API.addSubmissionNote(Number(selectedAppId), staffNote);
+      setStaffNote('');
+      await fetchApplications(); // Refresh list to get new notes
+    } catch (err: any) {
+      alert(err.message || 'Failed to add note');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter] = useState('all');
@@ -82,22 +139,22 @@ const StaffDashboard: React.FC = () => {
   const [reportTab, setReportTab] = useState('overview');
 
   const filteredApps = applications.filter(app => {
-    const matchesSearch = app.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      app.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      app.program.toLowerCase().includes(searchQuery.toLowerCase());
+    const appName = `${app.student_details?.first_name || ''} ${app.student_details?.last_name || ''}`.toLowerCase();
+    const matchesSearch = appName.includes(searchQuery.toLowerCase()) ||
+      String(app.id).includes(searchQuery.toLowerCase()) ||
+      (app.program || app.form_data?.program || '').toLowerCase().includes(searchQuery.toLowerCase());
     const matchesStatus = statusFilter === 'all' || app.status === statusFilter;
     return matchesSearch && matchesStatus;
   });
 
   const getStatusBadge = (status: string) => {
     switch (status) {
-      case 'new': return <span className="admin-badge badge-new">New</span>;
-      case 'review': return <span className="admin-badge badge-review">Review</span>;
-      case 'pending': return <span className="admin-badge badge-pending">Pending Director</span>;
-      case 'approved': return <span className="admin-badge badge-approved">Approved</span>;
-      case 'denied': return <span className="admin-badge badge-denied">Denied</span>;
-      case 'waitingb': return <span className="admin-badge badge-review" style={{ background: '#ffedd5', color: '#9a3412' }}>Waiting Form B</span>;
-      default: return null;
+      case 'pending': return <span className="admin-badge badge-new">New Submission</span>;
+      case 'reviewed': return <span className="admin-badge badge-review">SSW Reviewed</span>;
+      case 'forwarded': return <span className="admin-badge badge-pending" style={{ background: '#e0e7ff', color: '#3730a3' }}>Pending Director</span>;
+      case 'accepted': return <span className="admin-badge badge-approved">Approved</span>;
+      case 'rejected': return <span className="admin-badge badge-denied">Rejected</span>;
+      default: return <span className="admin-badge">{status.toUpperCase()}</span>;
     }
   };
 
@@ -137,7 +194,7 @@ const StaffDashboard: React.FC = () => {
               <div className="staff-nav-group">
                 <div className="staff-nav-title">Main</div>
                 {renderNavItem('dashboard', 'Dashboard', <AdminIcons.Dashboard />)}
-                {renderNavItem('director-queue', 'Approval Queue', <AdminIcons.Apps />, 5)}
+                {renderNavItem('director-queue', 'Approval Queue', <AdminIcons.Apps />, applications.filter(a => a.status === 'forwarded').length)}
                 {renderNavItem('applications', 'All Applications', <AdminIcons.Apps />)}
               </div>
               
@@ -153,7 +210,7 @@ const StaffDashboard: React.FC = () => {
               <div className="staff-nav-group">
                 <div className="staff-nav-title">Main</div>
                 {renderNavItem('dashboard', 'Dashboard', <AdminIcons.Dashboard />)}
-                {renderNavItem('applications', 'All Applications', <AdminIcons.Apps />, 8)}
+                {renderNavItem('applications', 'All Applications', <AdminIcons.Apps />, applications.filter(a => a.status === 'pending').length)}
                 {renderNavItem('payments', 'Payments', <AdminIcons.Dashboard />)}
               </div>
 
@@ -203,7 +260,20 @@ const StaffDashboard: React.FC = () => {
             {currentView === 'director' && 'Director Approval Queue'}
           </div>
 
-          <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+          <div style={{ display: 'flex', gap: '20px', alignItems: 'center' }}>
+            {/* Notification Bell */}
+            <div style={{ position: 'relative', cursor: 'pointer' }} onClick={() => setCurrentView('notifications' as any)}>
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: '#64748b' }}>
+                <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
+                <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
+              </svg>
+              {notifications.filter(n => !n.is_read).length > 0 && (
+                <span style={{ position: 'absolute', top: '-4px', right: '-4px', background: '#e11d48', color: '#fff', fontSize: '10px', fontWeight: '800', padding: '2px 5px', borderRadius: '10px', border: '2px solid #fff' }}>
+                  {notifications.filter(n => !n.is_read).length}
+                </span>
+              )}
+            </div>
+
             <span style={{ fontSize: '11px', color: '#64748b', fontWeight: '600' }}>FY 2025/2026</span>
             <div style={{ width: '1px', height: '20px', background: '#e2e8f0' }}></div>
             <button className="admin-badge badge-pending" style={{ border: 'none', cursor: 'pointer' }}>
@@ -213,6 +283,23 @@ const StaffDashboard: React.FC = () => {
         </header>
 
         <main className="staff-content">
+          {isLoading && applications.length === 0 && (
+            <div style={{ padding: '40px', textAlign: 'center', color: '#64748b' }}>
+              <div className="admin-spinner" style={{ width: '24px', height: '24px', border: '2px solid #e2e8f0', borderTopColor: 'var(--admin-accent)', borderRadius: '50%', margin: '0 auto 12px', animation: 'spin 1s linear infinite' }}></div>
+              <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+              Loading staff portal data...
+            </div>
+          )}
+
+          {error && !isLoading && (
+            <div style={{ padding: '24px' }}>
+              <div style={{ background: '#fff5f5', border: '1px solid #fed7d7', padding: '16px', borderRadius: '8px', color: '#c53030', fontSize: '13px' }}>
+                <strong style={{ display: 'block', marginBottom: '4px' }}>Error Loading Data</strong>
+                {error}
+                <button onClick={fetchApplications} style={{ marginLeft: '12px', background: 'none', border: 'none', color: '#c53030', textDecoration: 'underline', fontWeight: '800', cursor: 'pointer' }}>Try Again</button>
+              </div>
+            </div>
+          )}
           {/* Dashboard View */}
           {currentView === 'dashboard' && (
             <div className="fade-in">
@@ -239,20 +326,20 @@ const StaffDashboard: React.FC = () => {
 
               <div className="admin-kpi-row" style={{ gridTemplateColumns: 'repeat(4, 1fr)' }}>
                 <div className="admin-kpi-card">
-                  <div className="admin-kpi-val">47</div>
+                  <div className="admin-kpi-val">{stats.totalApps}</div>
                   <div className="admin-kpi-label">TOTAL APPLICATIONS</div>
                 </div>
                 <div className="admin-kpi-card">
-                  <div className="admin-kpi-val">$312k</div>
+                  <div className="admin-kpi-val">${(stats.approvedAmount / 1000).toFixed(stats.approvedAmount >= 1000 ? 1 : 2)}k</div>
                   <div className="admin-kpi-label">APPROVED ($)</div>
                 </div>
                 <div className="admin-kpi-card">
-                  <div className="admin-kpi-val" style={{ color: 'var(--admin-accent)' }}>8</div>
+                  <div className="admin-kpi-val" style={{ color: 'var(--admin-accent)' }}>{stats.underReview}</div>
                   <div className="admin-kpi-label">UNDER REVIEW</div>
                 </div>
                 <div className="admin-kpi-card">
-                  <div className="admin-kpi-val" style={{ color: 'var(--admin-danger)' }}>3</div>
-                  <div className="admin-kpi-label">ACTION REQUIRED</div>
+                  <div className="admin-kpi-val">{stats.activeStudents}</div>
+                  <div className="admin-kpi-label">ACTIVE STUDENTS</div>
                 </div>
               </div>
 
@@ -265,30 +352,30 @@ const StaffDashboard: React.FC = () => {
                   <div className="admin-stat-row">
                     <div className="admin-stat-head">
                       <span className="admin-stat-label">C-DFN (PSSSP / Bursary)</span>
-                      <span className="admin-stat-val">24 students</span>
+                      <span className="admin-stat-val">{(backendStats?.stream_split?.pssp || 0)} students</span>
                     </div>
                     <div className="admin-progress-bg">
-                      <div className="admin-progress-fill" style={{ width: '65%', background: '#1a6b3a' }}></div>
+                      <div className="admin-progress-fill" style={{ width: `${(backendStats?.stream_split?.pssp_percent || 0)}%`, background: '#1a6b3a' }}></div>
                     </div>
                   </div>
 
                   <div className="admin-stat-row">
                     <div className="admin-stat-head">
                       <span className="admin-stat-label">DGGR</span>
-                      <span className="admin-stat-val">12 students</span>
+                      <span className="admin-stat-val">{(backendStats?.stream_split?.dggr || 0)} students</span>
                     </div>
                     <div className="admin-progress-bg">
-                      <div className="admin-progress-fill" style={{ width: '35%', background: '#1e293b' }}></div>
+                      <div className="admin-progress-fill" style={{ width: `${(backendStats?.stream_split?.dggr_percent || 0)}%`, background: '#1e293b' }}></div>
                     </div>
                   </div>
 
                   <div className="admin-stat-row" style={{ marginBottom: 0 }}>
                     <div className="admin-stat-head">
                       <span className="admin-stat-label">UCEPP (Upgrading)</span>
-                      <span className="admin-stat-val">5 students</span>
+                      <span className="admin-stat-val">{(backendStats?.stream_split?.ucepp || 0)} students</span>
                     </div>
                     <div className="admin-progress-bg">
-                      <div className="admin-progress-fill" style={{ width: '15%', background: '#dd6b20' }}></div>
+                      <div className="admin-progress-fill" style={{ width: `${(backendStats?.stream_split?.ucepp_percent || 0)}%`, background: '#dd6b20' }}></div>
                     </div>
                   </div>
                 </div>
@@ -303,15 +390,15 @@ const StaffDashboard: React.FC = () => {
                         <span className="admin-badge badge-approved" style={{ minWidth: '80px', textAlign: 'center' }}>APPROVED</span>
                         <span style={{ fontSize: '13px', fontWeight: '600' }}>Ready for payment</span>
                       </div>
-                      <span style={{ fontSize: '14px', fontWeight: '800' }}>24</span>
+                      <span style={{ fontSize: '14px', fontWeight: '800' }}>{(backendStats?.submissions_by_status?.accepted || 0)}</span>
                     </div>
                     
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                         <span className="admin-badge badge-review" style={{ minWidth: '80px', textAlign: 'center' }}>REVIEW</span>
-                        <span style={{ fontSize: '13px', fontWeight: '600' }}>Under SSW review</span>
+                        <span style={{ fontSize: '13px', fontWeight: '600' }}>In process</span>
                       </div>
-                      <span style={{ fontSize: '14px', fontWeight: '800' }}>8</span>
+                      <span style={{ fontSize: '14px', fontWeight: '800' }}>{(backendStats?.submissions_by_status?.pending || 0) + (backendStats?.submissions_by_status?.reviewed || 0)}</span>
                     </div>
 
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -319,7 +406,7 @@ const StaffDashboard: React.FC = () => {
                         <span style={{ fontSize: '18px' }}>📜</span>
                         <span style={{ fontSize: '13px', fontWeight: '600' }}>Waiting Form B</span>
                       </div>
-                      <span style={{ fontSize: '14px', fontWeight: '800' }}>4</span>
+                      <span style={{ fontSize: '14px', fontWeight: '800' }}>{(backendStats?.form_b_stats?.awaiting || 0)}</span>
                     </div>
                   </div>
                 </div>
@@ -348,15 +435,18 @@ const StaffDashboard: React.FC = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {applications.slice(0, 5).map(app => (
+                    {applications.slice(0, 8).map(app => (
                       <tr key={app.id} style={{ cursor: 'pointer' }} onClick={() => handleAppClick(app.id)}>
-                        <td><span style={{ fontSize: '11px', color: '#64748b' }}>{app.id}</span></td>
-                        <td><strong>{app.name}</strong></td>
-                        <td style={{ fontSize: '12px' }}>{app.program}</td>
-                        <td style={{ fontSize: '12px', color: '#64748b' }}>{app.date}</td>
+                        <td><span style={{ fontSize: '11px', color: '#64748b' }}># {app.id}</span></td>
+                        <td><strong>{app.student_details?.full_name || 'Anonymous Student'}</strong></td>
+                        <td style={{ fontSize: '12px' }}>{app.form_title || app.form?.title || 'General App'}</td>
+                        <td style={{ fontSize: '12px', color: '#64748b' }}>{new Date(app.submitted_at).toLocaleDateString()}</td>
                         <td>{getStatusBadge(app.status)}</td>
                       </tr>
                     ))}
+                    {applications.length === 0 && (
+                      <tr><td colSpan={5} style={{ textAlign: 'center', padding: '40px', color: '#64748b' }}>No submissions found in system.</td></tr>
+                    )}
                   </tbody>
                 </table>
               </div>
@@ -412,36 +502,29 @@ const StaffDashboard: React.FC = () => {
                     {filteredApps.map(app => (
                       <tr key={app.id}>
                         <td><span style={{ fontSize: '11px', color: '#64748b' }}>{app.id}</span></td>
-                        <td><strong>{app.name}</strong></td>
-                        <td style={{ fontSize: '12px' }}>{app.program}</td>
-                        <td style={{ fontSize: '12px' }}>{app.date}</td>
+                        <td><strong>{app.student_details?.full_name}</strong></td>
+                        <td style={{ fontSize: '12px' }}>{app.form_title || app.form?.title}</td>
+                        <td style={{ fontSize: '12px' }}>{new Date(app.submitted_at).toLocaleDateString()}</td>
                         <td>{getStatusBadge(app.status)}</td>
                         <td>
-                          {app.formB === 'received' ? (
+                          {app.status === 'accepted' ? (
                             <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', color: '#166534' }}>
-                              <div style={{ width: '8px', height: '8px', background: '#1a6b3a', borderRadius: '50%' }}></div> Received
-                            </div>
-                          ) : app.formB === 'awaiting' ? (
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', fontSize: '11px' }}>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#854d0e' }}>
-                                <div style={{ width: '8px', height: '8px', background: '#eab308', borderRadius: '50%' }}></div> Sent
-                              </div>
-                              <div style={{ paddingLeft: '14px', color: '#64748b' }}>Awaiting</div>
+                              <div style={{ width: '8px', height: '8px', background: '#1a6b3a', borderRadius: '50%' }}></div> Completed
                             </div>
                           ) : (
                             <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', color: '#64748b' }}>
-                              <div style={{ width: '8px', height: '8px', background: '#cbd5e1', borderRadius: '50%' }}></div> Not Sent
+                              <div style={{ width: '8px', height: '8px', background: '#cbd5e1', borderRadius: '50%' }}></div> Pending
                             </div>
                           )}
                         </td>
-                        <td><strong>{app.amount > 0 ? `$${app.amount.toLocaleString()}` : '—'}</strong></td>
+                        <td><strong>{app.amount > 0 ? `$${parseFloat(app.amount).toLocaleString()}` : '—'}</strong></td>
                         <td>
                           <button
                             className="admin-input"
                             style={{
                               width: 'auto',
                               padding: '6px 12px',
-                              background: app.status === 'pending' ? '#000' : '#1e1e1e',
+                              background: '#000',
                               color: '#fff',
                               fontSize: '11px',
                               fontWeight: '700',
@@ -450,7 +533,7 @@ const StaffDashboard: React.FC = () => {
                             }}
                             onClick={() => handleAppClick(app.id)}
                           >
-                            {app.status === 'pending' ? 'Director Review →' : 'Review →'}
+                            {app.status === 'forwarded' && role === 'director' ? 'DECIDE →' : 'Review →'}
                           </button>
                         </td>
                       </tr>
@@ -471,8 +554,21 @@ const StaffDashboard: React.FC = () => {
                 </div>
                 <div style={{ display: 'flex', gap: '8px' }}>
                   <button className="admin-input" style={{ width: 'auto', fontSize: '11px', fontWeight: '700' }}>REQUEST MORE INFO</button>
-                  <button className="admin-input" style={{ width: 'auto', fontSize: '11px', fontWeight: '700' }}>ADD NOTE</button>
-                  <button className="admin-input" style={{ width: 'auto', fontSize: '11px', fontWeight: '700', background: '#cbd5e1', color: '#475569', border: 'none' }}>SEND TO DIRECTOR →</button>
+                  <button className="admin-input" style={{ width: 'auto', fontSize: '11px', fontWeight: '700' }} onClick={handleAddNote} disabled={!staffNote.trim() || isLoading}>ADD NOTE</button>
+                  {role === 'director' ? (
+                    <>
+                      <button className="admin-input" style={{ width: 'auto', fontSize: '11px', fontWeight: '700', background: '#1a6b3a', color: '#fff', border: 'none' }} onClick={() => handleDecision('accepted')}>APPROVE APPLICATION</button>
+                      <button className="admin-input" style={{ width: 'auto', fontSize: '11px', fontWeight: '700', background: '#991b1b', color: '#fff', border: 'none' }} onClick={() => handleDecision('rejected')}>REJECT</button>
+                    </>
+                  ) : (
+                    <button 
+                      className="admin-input" 
+                      style={{ width: 'auto', fontSize: '11px', fontWeight: '700', background: 'var(--admin-accent)', color: '#000', border: 'none' }}
+                      onClick={() => handleDecision('forwarded')}
+                    >
+                      SEND TO DIRECTOR →
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -494,27 +590,27 @@ const StaffDashboard: React.FC = () => {
                       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '24px' }}>
                         <div>
                           <label className="admin-kpi-label" style={{ fontSize: '9px' }}>NAME</label>
-                          <div style={{ fontSize: '13px', fontWeight: '700' }}>{applications.find(a => a.id === selectedAppId)?.name}</div>
+                          <div style={{ fontSize: '13px', fontWeight: '700' }}>{applications.find(a => a.id === selectedAppId)?.student_details?.full_name}</div>
                         </div>
                         <div>
                           <label className="admin-kpi-label" style={{ fontSize: '9px' }}>BENEFICIARY #</label>
-                          <div style={{ fontSize: '13px', fontWeight: '700' }}>DGG-00412</div>
+                          <div style={{ fontSize: '13px', fontWeight: '700' }}>{applications.find(a => a.id === selectedAppId)?.student_details?.beneficiary_number || 'None'}</div>
                         </div>
                         <div>
                           <label className="admin-kpi-label" style={{ fontSize: '9px' }}>DOB</label>
-                          <div style={{ fontSize: '13px', fontWeight: '700' }}>1998/04/12</div>
+                          <div style={{ fontSize: '13px', fontWeight: '700' }}>{applications.find(a => a.id === selectedAppId)?.student_details?.dob || 'Not Provided'}</div>
                         </div>
                         <div>
                           <label className="admin-kpi-label" style={{ fontSize: '9px' }}>PHONE</label>
-                          <div style={{ fontSize: '13px', fontWeight: '700' }}>867-555-0199</div>
+                          <div style={{ fontSize: '13px', fontWeight: '700' }}>{applications.find(a => a.id === selectedAppId)?.student_details?.phone || 'None'}</div>
                         </div>
                         <div>
                           <label className="admin-kpi-label" style={{ fontSize: '9px' }}>ENROLLMENT</label>
-                          <div style={{ fontSize: '13px', fontWeight: '700' }}>Full-Time · 2 dep.</div>
+                          <div style={{ fontSize: '13px', fontWeight: '700' }}>{applications.find(a => a.id === selectedAppId)?.form_title || 'Application'}</div>
                         </div>
                         <div>
-                          <label className="admin-kpi-label" style={{ fontSize: '9px' }}>SFA</label>
-                          <div style={{ fontSize: '13px', fontWeight: '700' }}>No</div>
+                          <label className="admin-kpi-label" style={{ fontSize: '9px' }}>STATUS</label>
+                          <div style={{ fontSize: '13px', fontWeight: '700' }}>{applications.find(a => a.id === selectedAppId)?.status.toUpperCase()}</div>
                         </div>
                         <div>
                           <label className="admin-kpi-label" style={{ fontSize: '9px' }}>INSTITUTION</label>
@@ -634,13 +730,43 @@ const StaffDashboard: React.FC = () => {
 
                   <div className="admin-chart-card">
                     <h3 style={{ fontSize: '11px', fontWeight: '700', textTransform: 'uppercase', marginBottom: '20px', color: '#64748b' }}>STAFF NOTES (INTERNAL ONLY)</h3>
-                    <div style={{ background: '#f8fafc', padding: '12px', borderRadius: '8px', minHeight: '120px', border: '1px solid #e2e8f0' }}>
-                      <div style={{ fontSize: '11px', color: '#94a3b8', fontStyle: 'italic' }}>No notes yet.</div>
-                      <textarea
-                        className="admin-input"
-                        placeholder="Add internal note — not visible to student.."
-                        style={{ marginTop: '12px', fontSize: '12px', border: 'none', background: 'transparent', resize: 'none', padding: '0', width: '100%' }}
-                      ></textarea>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '300px', overflowY: 'auto', paddingRight: '4px' }}>
+                        {applications.find(a => a.id === selectedAppId)?.notes?.length > 0 ? (
+                          applications.find(a => a.id === selectedAppId).notes.map((note: any) => (
+                            <div key={note.id} style={{ background: '#f8fafc', padding: '10px 12px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                              <div style={{ fontSize: '12px', color: '#1e293b', lineHeight: '1.5' }}>{note.text}</div>
+                              <div style={{ fontSize: '10px', color: '#64748b', marginTop: '6px', display: 'flex', justifyContent: 'space-between' }}>
+                                <span>{note.added_by_name || 'Staff Member'}</span>
+                                <span>{new Date(note.created_at).toLocaleDateString()}</span>
+                              </div>
+                            </div>
+                          ))
+                        ) : (
+                          <div style={{ fontSize: '11px', color: '#94a3b8', fontStyle: 'italic', padding: '12px', textAlign: 'center', background: '#f8fafc', borderRadius: '8px', border: '1px dashed #cbd5e1' }}>
+                            No internal notes yet.
+                          </div>
+                        )}
+                      </div>
+                      <div style={{ background: '#f8fafc', padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                        <textarea
+                          className="admin-input"
+                          placeholder="Add internal note — not visible to student.."
+                          style={{ fontSize: '12px', border: 'none', background: 'transparent', resize: 'none', padding: '0', width: '100%', minHeight: '60px' }}
+                          value={staffNote}
+                          onChange={(e) => setStaffNote(e.target.value)}
+                        ></textarea>
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '8px' }}>
+                          <button 
+                            className="admin-badge badge-review" 
+                            style={{ cursor: 'pointer', border: 'none', opacity: !staffNote.trim() || isLoading ? 0.5 : 1 }}
+                            onClick={handleAddNote}
+                            disabled={!staffNote.trim() || isLoading}
+                          >
+                            {isLoading ? 'Posting...' : 'Save Note'}
+                          </button>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -1130,11 +1256,21 @@ const StaffDashboard: React.FC = () => {
           {/* Reporting View */}
           {currentView === 'reports' && (
             <div className="fade-in">
+              {!backendStats ? (
+                <div style={{ padding: '60px', textAlign: 'center', background: '#fff', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                  <div className="admin-loading-spinner" style={{ margin: '0 auto 20px' }}></div>
+                  <div style={{ color: '#64748b', fontWeight: '600' }}>Aggregating real-time database records...</div>
+                  <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '4px' }}>Connecting to LIVE reporting engine</div>
+                </div>
+              ) : (
+                <>
               {/* Report Header */}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '24px' }}>
                 <div>
                   <h2 style={{ fontSize: '20px', fontWeight: '800', color: '#111' }}>REPORTING OVERVIEW — FISCAL {fiscalYear}</h2>
-                  <div style={{ fontSize: '11px', color: '#64748b', marginTop: '4px' }}>Apr 1, 2024 — Mar 31, 2025 · All funding streams · Generated Mar 10, 2025</div>
+                  <div style={{ fontSize: '11px', color: '#64748b', marginTop: '4px' }}>
+                    {new Date().toLocaleDateString('en-CA', { month: 'long', day: 'numeric', year: 'numeric' })} · All active funding streams
+                  </div>
                 </div>
                 <div style={{ display: 'flex', gap: '8px' }}>
                   <button className="admin-input" style={{ width: 'auto', background: '#fff', border: '1px solid #e2e8f0', fontSize: '11px', fontWeight: '800', padding: '8px 16px', color: '#1e293b' }}>📥 CSV</button>
@@ -1184,25 +1320,25 @@ const StaffDashboard: React.FC = () => {
               {/* KPI Cards Row */}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr) 200px', gap: '16px', marginBottom: '24px' }}>
                 {[
-                  { label: 'TOTAL DISBURSED', val: '$312,400', sub: '↑ 14% vs prior year', color: '#111' },
-                  { label: 'STUDENTS FUNDED', val: '41', sub: '↑ 5 vs prior year', color: '#111' },
-                  { label: 'C-DFN TOTAL', val: '$184,200', sub: '↑ 8%', color: '#1a6b3a' },
-                  { label: 'DGGR TOTAL', val: '$108,600', sub: '↑ 22%', color: '#3a4aaa' },
-                  { label: 'UCEPP TOTAL', val: '$19,600', sub: '↓ 3%', color: '#cc3333' },
+                  { label: 'TOTAL DISBURSED', val: `$${(stats.approvedAmount / 1000).toFixed(1)}k`, sub: 'Real-time authorized', color: '#111' },
+                  { label: 'STUDENTS FUNDED', val: stats.activeStudents, sub: 'Active in FY', color: '#111' },
+                  { label: 'C-DFN TOTAL', val: `$${((backendStats?.stream_totals?.pssp || 0) / 1000).toFixed(1)}k`, sub: 'authorized', color: '#1a6b3a' },
+                  { label: 'DGGR TOTAL', val: `$${((backendStats?.stream_totals?.dggr || 0) / 1000).toFixed(1)}k`, sub: 'authorized', color: '#3a4aaa' },
+                  { label: 'UCEPP TOTAL', val: `$${((backendStats?.stream_totals?.ucepp || 0) / 1000).toFixed(1)}k`, sub: 'authorized', color: '#cc3333' },
                 ].map((kpi, i) => (
                   <div key={i} className="admin-kpi-card" style={{ padding: '16px', borderLeft: i === 0 ? '4px solid #111' : 'none' }}>
                     <div className="admin-kpi-label" style={{ fontSize: '9px' }}>{kpi.label}</div>
                     <div className="admin-kpi-val" style={{ fontSize: '20px', margin: '4px 0', color: kpi.color }}>{kpi.val}</div>
-                    <div style={{ fontSize: '10px', color: kpi.sub.includes('↑') ? '#1a6b3a' : kpi.sub.includes('↓') ? '#cc3333' : '#64748b', fontWeight: '700' }}>{kpi.sub}</div>
+                    <div style={{ fontSize: '10px', color: '#64748b', fontWeight: '700' }}>{kpi.sub}</div>
                   </div>
                 ))}
                 <div className="admin-kpi-card" style={{ padding: '12px', borderLeft: '4px solid #cc3333', background: '#fff5f5' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                    <div className="admin-kpi-val" style={{ fontSize: '24px', color: '#cc3333' }}>3</div>
+                    <div className="admin-kpi-val" style={{ fontSize: '24px', color: '#cc3333' }}>{(backendStats?.flags_count || 0)}</div>
                     <div className="admin-badge" style={{ background: '#cc3333', color: '#fff', fontSize: '8px' }}>URGENT</div>
                   </div>
                   <div className="admin-kpi-label" style={{ fontSize: '9px', marginTop: '4px' }}>OVERRIDE FLAGS</div>
-                  <div style={{ fontSize: '9px', color: '#64748b' }}>6 unresolved</div>
+                  <div style={{ fontSize: '9px', color: '#64748b' }}>Awaiting resolution</div>
                 </div>
               </div>
 
@@ -1216,37 +1352,37 @@ const StaffDashboard: React.FC = () => {
                   <div className="admin-stat-row">
                     <div className="admin-stat-head">
                       <span className="admin-stat-label">C-DFN (PSSSP / Bursary)</span>
-                      <span className="admin-stat-val">24 students</span>
+                      <span className="admin-stat-val">{(backendStats?.stream_split?.pssp || 0)} students</span>
                     </div>
                     <div className="admin-progress-bg">
-                      <div className="admin-progress-fill" style={{ width: '65%', background: '#1a6b3a' }}></div>
+                      <div className="admin-progress-fill" style={{ width: `${(backendStats?.stream_split?.pssp_percent || 0)}%`, background: '#1a6b3a' }}></div>
                     </div>
                   </div>
 
                   <div className="admin-stat-row">
                     <div className="admin-stat-head">
                       <span className="admin-stat-label">DGGR</span>
-                      <span className="admin-stat-val">12 students</span>
+                      <span className="admin-stat-val">{(backendStats?.stream_split?.dggr || 0)} students</span>
                     </div>
                     <div className="admin-progress-bg">
-                      <div className="admin-progress-fill" style={{ width: '35%', background: '#1e293b' }}></div>
+                      <div className="admin-progress-fill" style={{ width: `${(backendStats?.stream_split?.dggr_percent || 0)}%`, background: '#1e293b' }}></div>
                     </div>
                   </div>
 
                   <div className="admin-stat-row" style={{ marginBottom: 0 }}>
                     <div className="admin-stat-head">
                       <span className="admin-stat-label">UCEPP (Upgrading)</span>
-                      <span className="admin-stat-val">5 students</span>
+                      <span className="admin-stat-val">{(backendStats?.stream_split?.ucepp || 0)} students</span>
                     </div>
                     <div className="admin-progress-bg">
-                      <div className="admin-progress-fill" style={{ width: '15%', background: '#e5a662' }}></div>
+                      <div className="admin-progress-fill" style={{ width: `${(backendStats?.stream_split?.ucepp_percent || 0)}%`, background: '#e5a662' }}></div>
                     </div>
                   </div>
 
                   <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: '16px', marginTop: '16px', display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px' }}>
-                    <div style={{ fontSize: '11px' }}><span style={{ color: '#64748b' }}>C-DFN:</span> <strong>24</strong></div>
-                    <div style={{ fontSize: '11px' }}><span style={{ color: '#64748b' }}>DGGR:</span> <strong>17</strong></div>
-                    <div style={{ fontSize: '11px' }}><span style={{ color: '#64748b' }}>Dual:</span> <strong>5</strong></div>
+                    <div style={{ fontSize: '11px' }}><span style={{ color: '#64748b' }}>C-DFN:</span> <strong>{(backendStats?.stream_split?.pssp || 0)}</strong></div>
+                    <div style={{ fontSize: '11px' }}><span style={{ color: '#64748b' }}>DGGR:</span> <strong>{(backendStats?.stream_split?.dggr || 0)}</strong></div>
+                    <div style={{ fontSize: '11px' }}><span style={{ color: '#64748b' }}>UCEPP:</span> <strong>{(backendStats?.stream_split?.ucepp || 0)}</strong></div>
                   </div>
                 </div>
 
@@ -1260,15 +1396,15 @@ const StaffDashboard: React.FC = () => {
                         <span className="admin-badge badge-approved" style={{ minWidth: '80px', textAlign: 'center' }}>APPROVED</span>
                         <span style={{ fontSize: '13px', fontWeight: '600' }}>Ready for payment</span>
                       </div>
-                      <span style={{ fontSize: '14px', fontWeight: '800' }}>24</span>
+                      <span style={{ fontSize: '14px', fontWeight: '800' }}>{(backendStats?.submissions_by_status?.accepted || 0)}</span>
                     </div>
                     
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                         <span className="admin-badge badge-review" style={{ minWidth: '80px', textAlign: 'center' }}>REVIEW</span>
-                        <span style={{ fontSize: '13px', fontWeight: '600' }}>Under SSW review</span>
+                        <span style={{ fontSize: '13px', fontWeight: '600' }}>In process</span>
                       </div>
-                      <span style={{ fontSize: '14px', fontWeight: '800' }}>8</span>
+                      <span style={{ fontSize: '14px', fontWeight: '800' }}>{(backendStats?.submissions_by_status?.pending || 0) + (backendStats?.submissions_by_status?.reviewed || 0)}</span>
                     </div>
 
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -1276,7 +1412,7 @@ const StaffDashboard: React.FC = () => {
                         <span style={{ fontSize: '18px' }}>📜</span>
                         <span style={{ fontSize: '13px', fontWeight: '600', marginLeft: '4px' }}>Waiting Form B</span>
                       </div>
-                      <span style={{ fontSize: '14px', fontWeight: '800' }}>4</span>
+                      <span style={{ fontSize: '14px', fontWeight: '800' }}>{(backendStats?.form_b_stats?.awaiting || 0)}</span>
                     </div>
                   </div>
                 </div>
@@ -1288,28 +1424,54 @@ const StaffDashboard: React.FC = () => {
                   <div className="admin-chart-card">
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
                       <h3 style={{ fontSize: '12px', fontWeight: '800', textTransform: 'uppercase' }}>DISBURSEMENTS BY QUARTER</h3>
-                      <div style={{ fontSize: '10px', color: '#64748b' }}>FY 2024-2025</div>
+                      <div style={{ fontSize: '10px', color: '#64748b' }}>Real-time aggregated</div>
                     </div>
                     <div className="stacked-bar-chart" style={{ height: '220px', position: 'relative', display: 'flex', paddingBottom: '30px', borderBottom: '1px solid #e2e8f0', gap: '40px', alignItems: 'flex-end', justifyContent: 'space-around' }}>
-                      {[
-                        { label: 'Q1', meta: 'Apr-Jun', total: '$71k', h1: '70%', h2: '20%', h3: '10%' },
-                        { label: 'Q2', meta: 'Jul-Sep', total: '$83k', h1: '60%', h2: '30%', h3: '10%' },
-                        { label: 'Q3', meta: 'Oct-Dec', total: '$96k', h1: '65%', h2: '25%', h3: '10%' },
-                        { label: 'Q4', meta: 'Jan-Mar', total: '$62k', h1: '55%', h2: '35%', h3: '10%' },
-                      ].map((q, i) => (
-                        <div key={i} style={{ flex: 1, height: '100%', position: 'relative', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', alignItems: 'center' }}>
-                          <div style={{ position: 'absolute', top: '-25px', fontSize: '11px', fontWeight: '800' }}>{q.total}</div>
-                          <div style={{ width: '100%', maxWidth: '40px', display: 'flex', flexDirection: 'column', gap: '1px' }}>
-                            <div style={{ height: q.h1, background: '#1a6b3a', borderRadius: '4px 4px 0 0' }}></div>
-                            <div style={{ height: q.h2, background: '#1e293b' }}></div>
-                            <div style={{ height: q.h3, background: 'var(--admin-accent)' }}></div>
-                          </div>
-                          <div style={{ position: 'absolute', bottom: '-45px', textAlign: 'center' }}>
-                            <div style={{ fontSize: '11px', fontWeight: '800' }}>{q.label}</div>
-                            <div style={{ fontSize: '9px', color: '#64748b' }}>{q.meta}</div>
-                          </div>
-                        </div>
-                      ))}
+                      {(() => {
+                        const quarters = [
+                          { label: 'Q1', months: [3, 4, 5], meta: 'Apr-Jun' },
+                          { label: 'Q2', months: [6, 7, 8], meta: 'Jul-Sep' },
+                          { label: 'Q3', months: [9, 10, 11], meta: 'Oct-Dec' },
+                          { label: 'Q4', months: [0, 1, 2], meta: 'Jan-Mar' },
+                        ];
+                        
+                        return quarters.map((q, i) => {
+                          const qApps = applications.filter(app => {
+                            const date = new Date(app.submitted_at || app.date);
+                            return q.months.includes(date.getMonth()) && app.status === 'accepted';
+                          });
+                          
+                          const totalAmt = qApps.reduce((sum, app) => sum + parseFloat(app.amount || 0), 0);
+                          const totalK = totalAmt > 0 ? (totalAmt / 1000).toFixed(1) + 'k' : '$0';
+                          
+                          // Precise Proportions from submissions
+                          const streamCounts = {
+                            pssp: qApps.filter(a => (a.form_type || '').includes('FormA') || (a.form__title || '').includes('FormA')).length,
+                            dggr: qApps.filter(a => (a.form_type || '').includes('Top-Up') || (a.form__title || '').includes('Top-Up')).length,
+                            ucepp: qApps.filter(a => (a.form_type || '').includes('UCEPP') || (a.form__title || '').includes('UCEPP')).length
+                          };
+                          const totalQApps = qApps.length || 1;
+                          
+                          const h1 = (streamCounts.pssp / totalQApps * 100) + '%';
+                          const h2 = (streamCounts.dggr / totalQApps * 100) + '%';
+                          const h3 = (streamCounts.ucepp / totalQApps * 100) + '%';
+                          
+                          return (
+                            <div key={i} style={{ flex: 1, height: '100%', position: 'relative', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', alignItems: 'center' }}>
+                              <div style={{ position: 'absolute', top: '-25px', fontSize: '11px', fontWeight: '800' }}>{totalK}</div>
+                              <div style={{ width: '100%', maxWidth: '40px', display: 'flex', flexDirection: 'column', gap: '1px' }}>
+                                <div style={{ height: h1, background: '#1a6b3a', borderRadius: '4px 4px 0 0' }}></div>
+                                <div style={{ height: h2, background: '#1e293b' }}></div>
+                                <div style={{ height: h3, background: 'var(--admin-accent)' }}></div>
+                              </div>
+                              <div style={{ position: 'absolute', bottom: '-45px', textAlign: 'center' }}>
+                                <div style={{ fontSize: '11px', fontWeight: '800' }}>{q.label}</div>
+                                <div style={{ fontSize: '9px', color: '#64748b' }}>{q.meta}</div>
+                              </div>
+                            </div>
+                          );
+                        });
+                      })()}
                     </div>
                     <div style={{ display: 'flex', gap: '20px', marginTop: '55px', justifyContent: 'center' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '10px' }}>
@@ -1327,23 +1489,28 @@ const StaffDashboard: React.FC = () => {
                   <div className="admin-chart-card">
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
                       <h3 style={{ fontSize: '12px', fontWeight: '800', textTransform: 'uppercase' }}>DISBURSEMENTS BY AWARD TYPE</h3>
-                      <div style={{ fontSize: '10px', color: '#64748b' }}>FY 2024-2025</div>
+                      <div style={{ fontSize: '10px', color: '#64748b' }}>Real-time distribution</div>
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                      {[
-                        { label: 'Tuition', amount: '$138,500', width: '90%', color: '#1e293b' },
-                        { label: 'Living Allow.', amount: '$112,400', width: '75%', color: '#1a6b3a' },
-                        { label: 'Travel', amount: '$28,900', width: '20%', color: '#7c4d12' },
-                        { label: 'Scholarship', amount: '$12,000', width: '10%', color: 'var(--admin-accent)' },
-                      ].map((row, i) => (
-                        <div key={i} style={{ display: 'grid', gridTemplateColumns: '100px 1fr 100px', gap: '16px', alignItems: 'center' }}>
-                          <div style={{ fontSize: '11px', fontWeight: '600', color: '#64748b' }}>{row.label}</div>
-                          <div style={{ height: '24px', background: '#f1f5f9', borderRadius: '4px', position: 'relative', overflow: 'hidden' }}>
-                            <div style={{ height: '100%', width: row.width, background: row.color, borderRadius: '4px' }}></div>
+                      {(() => {
+                        const types = [
+                          { label: 'Living Allow.', count: applications.filter(a => (a.form__title || '').includes('FormA') || (a.form__title || '').includes('FormC')).length, color: '#1a6b3a' },
+                          { label: 'Travel', count: applications.filter(a => (a.form__title || '').includes('FormE')).length, color: '#7c4d12' },
+                          { label: 'Scholarship', count: applications.filter(a => (a.form__title || '').includes('Scholarship')).length, color: 'var(--admin-accent)' },
+                          { label: 'Hardship', count: applications.filter(a => (a.form__title || '').includes('Hardship')).length, color: '#991b1b' },
+                        ];
+                        const maxCount = Math.max(...types.map(t => t.count), 1);
+                        
+                        return types.map((row, i) => (
+                          <div key={i} style={{ display: 'grid', gridTemplateColumns: '100px 1fr 100px', gap: '16px', alignItems: 'center' }}>
+                            <div style={{ fontSize: '11px', fontWeight: '600', color: '#64748b' }}>{row.label}</div>
+                            <div style={{ height: '20px', background: '#f1f5f9', borderRadius: '4px', position: 'relative', overflow: 'hidden' }}>
+                              <div style={{ height: '100%', width: `${(row.count / maxCount) * 100}%`, background: row.color, borderRadius: '4px' }}></div>
+                            </div>
+                            <div style={{ fontSize: '12px', fontWeight: '800', textAlign: 'right' }}>{row.count} apps</div>
                           </div>
-                          <div style={{ fontSize: '12px', fontWeight: '800', textAlign: 'right' }}>{row.amount}</div>
-                        </div>
-                      ))}
+                        ));
+                      })()}
                     </div>
                   </div>
                 </div>
@@ -1352,7 +1519,7 @@ const StaffDashboard: React.FC = () => {
                 <div className="admin-chart-card" style={{ padding: '0' }}>
                   <div style={{ padding: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #e2e8f0' }}>
                     <h3 style={{ fontSize: '12px', fontWeight: '800' }}>ANNUAL SUMMARY RECORD</h3>
-                    <div style={{ fontSize: '10px', color: '#64748b' }}>41 records processed</div>
+                    <div style={{ fontSize: '10px', color: '#64748b' }}>{applications.length} records processed</div>
                   </div>
                   <div className="admin-table-wrap" style={{ border: 'none', boxShadow: 'none' }}>
                     <table className="admin-table table-dense">
@@ -1370,24 +1537,17 @@ const StaffDashboard: React.FC = () => {
                         </tr>
                       </thead>
                       <tbody>
-                        {[
-                          { name: 'Marie Beaulieu', id: 'DGG-00412', stream: 'C-DFN', inst: 'U of Calgary', sem: 'Fall 2025', status: 'approved', calc: '$12,400', override: 'No', disb: '$12,400' },
-                          { name: 'Sarah Thomas', id: 'DGG-00342', stream: 'DGGR', inst: 'Aurora College', sem: 'Fall 2025', status: 'approved', calc: '$8,200', override: 'No', disb: '$8,200' },
-                          { name: 'Lisa Modeste', id: 'DGG-00810', stream: 'C-DFN', inst: 'U of Alberta', sem: 'Fall 2025', status: 'approved', calc: '$13,400', override: 'Yes', disb: '$14,100' },
-                          { name: 'James Baton', id: 'DGG-00171', stream: 'C-DFN', inst: 'Dalhousie', sem: 'Fall 2025', status: 'approved', calc: '$11,500', override: 'No', disb: '$11,500' },
-                        ].map((row, i) => (
+                        {applications.slice(0, 10).map((row, i) => (
                           <tr key={i}>
-                            <td><strong>{row.name}</strong></td>
-                            <td><span style={{ fontSize: '10px', color: '#64748b' }}>{row.id}</span></td>
-                            <td><span className="admin-badge" style={{ fontSize: '9px', background: row.stream === 'C-DFN' ? '#dcfce7' : '#fff7ed' }}>{row.stream}</span></td>
-                            <td style={{ fontSize: '11px' }}>{row.inst}</td>
-                            <td style={{ fontSize: '11px', color: '#64748b' }}>{row.sem}</td>
+                            <td><strong>{row.student_details?.first_name} {row.student_details?.last_name}</strong></td>
+                            <td><span style={{ fontSize: '10px', color: '#64748b' }}>DGG-{row.id.toString().padStart(5, '0')}</span></td>
+                            <td><span className="admin-badge" style={{ fontSize: '9px', background: row.form_type.includes('FormA') ? '#dcfce7' : '#fff7ed' }}>{row.form_type}</span></td>
+                            <td style={{ fontSize: '11px' }}>{row.institution || 'N/A'}</td>
+                            <td style={{ fontSize: '11px', color: '#64748b' }}>{row.academic_year || 'FY 25/26'}</td>
                             <td>{getStatusBadge(row.status)}</td>
-                            <td style={{ fontSize: '11px', color: '#64748b' }}>{row.calc}</td>
-                            <td style={{ fontSize: '11px', color: row.override === 'Yes' ? '#c2410c' : '#64748b', fontWeight: row.override === 'Yes' ? '800' : 'normal' }}>
-                              {row.override === 'Yes' ? '▶ Yes' : 'No'}
-                            </td>
-                            <td style={{ textAlign: 'right', fontWeight: '800' }}>{row.disb}</td>
+                            <td style={{ fontSize: '11px', color: '#64748b' }}>${parseFloat(row.amount || 0).toLocaleString()}</td>
+                            <td style={{ fontSize: '11px', color: '#64748b' }}>No</td>
+                            <td style={{ textAlign: 'right', fontWeight: '800' }}>${parseFloat(row.amount || 0).toLocaleString()}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -1430,8 +1590,10 @@ const StaffDashboard: React.FC = () => {
                   </div>
                 </div>
               </div>
-            </div>
-          )}
+            </>
+            )}
+          </div>
+        )}
 
           {/* Director Approval Queue View */}
           {currentView === 'director-queue' && (
@@ -1443,19 +1605,19 @@ const StaffDashboard: React.FC = () => {
 
               <div className="admin-kpi-row" style={{ gridTemplateColumns: 'repeat(4, 1fr)' }}>
                 <div className="admin-kpi-card">
-                  <div className="admin-kpi-val">2</div>
+                  <div className="admin-kpi-val">{(backendStats?.submissions_by_status?.forwarded || 0)}</div>
                   <div className="admin-kpi-label">STANDARD</div>
                 </div>
                 <div className="admin-kpi-card">
-                  <div className="admin-kpi-val" style={{ color: '#e5a662' }}>2</div>
+                  <div className="admin-kpi-val" style={{ color: '#e5a662' }}>0</div>
                   <div className="admin-kpi-label">WITH OVERRIDES</div>
                 </div>
                 <div className="admin-kpi-card">
-                  <div className="admin-kpi-val" style={{ color: '#cc3333' }}>1</div>
+                  <div className="admin-kpi-val" style={{ color: '#cc3333' }}>0</div>
                   <div className="admin-kpi-label">EXCEPTION REQUEST</div>
                 </div>
                 <div className="admin-kpi-card">
-                  <div className="admin-kpi-val">$98k</div>
+                  <div className="admin-kpi-val">${((backendStats?.pending_funding_total || 0) / 1000).toFixed(1)}k</div>
                   <div className="admin-kpi-label">TOTAL PENDING $</div>
                 </div>
               </div>
@@ -1474,14 +1636,14 @@ const StaffDashboard: React.FC = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {applications.filter(a => a.status === 'review').map(app => (
+                    {applications.filter(a => a.status === 'forwarded').map(app => (
                       <tr key={app.id}>
                         <td><span style={{ fontSize: '11px', color: '#64748b' }}>{app.id}</span></td>
                         <td><strong>{app.name}</strong></td>
                         <td style={{ fontSize: '12px' }}>{app.program}</td>
                         <td style={{ fontSize: '13px', fontWeight: '700' }}>${app.amount.toLocaleString()}</td>
                         <td>
-                          {app.flags?.map(f => (
+                          {app.flags?.map((f: string) => (
                             <span key={f} className={`admin-badge badge-${f.toLowerCase()}`} style={{ fontSize: '9px', padding: '2px 6px' }}>{f}</span>
                           ))}
                         </td>
@@ -1521,14 +1683,14 @@ const StaffDashboard: React.FC = () => {
                       </tr>
                     </thead>
                     <tbody>
-                      {applications.filter(a => a.status === 'approved' || a.status === 'denied').map(app => (
+                      {applications.filter(a => a.status === 'accepted' || a.status === 'rejected').map(app => (
                         <tr key={app.id}>
                           <td><span style={{ fontSize: '10px', color: '#64748b' }}>{app.id}</span></td>
-                          <td><strong>{app.name}</strong></td>
-                          <td style={{ fontSize: '11px' }}>{app.program}</td>
-                          <td style={{ fontSize: '12px', fontWeight: '700' }}>${app.amount.toLocaleString()}</td>
+                          <td><strong>{app.student_details?.full_name || app.name}</strong></td>
+                          <td style={{ fontSize: '11px' }}>{app.program || app.form_data?.program || 'N/A'}</td>
+                          <td style={{ fontSize: '12px', fontWeight: '700' }}>${parseFloat(app.amount || 0).toLocaleString()}</td>
                           <td>
-                            {app.status === 'approved' ? (
+                            {app.status === 'accepted' ? (
                               <span style={{ color: '#1a6b3a', fontWeight: '700', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '4px' }}>
                                 <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Approved
                               </span>
@@ -1538,8 +1700,8 @@ const StaffDashboard: React.FC = () => {
                               </span>
                             )}
                           </td>
-                          <td style={{ fontSize: '11px', color: '#64748b' }}>{app.decisionBy}</td>
-                          <td style={{ fontSize: '11px', color: '#64748b' }}>{app.decisionWhen}</td>
+                          <td style={{ fontSize: '11px', color: '#64748b' }}>System</td>
+                          <td style={{ fontSize: '11px', color: '#64748b' }}>{new Date(app.submitted_at || Date.now()).toLocaleDateString()}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -1566,7 +1728,7 @@ const StaffDashboard: React.FC = () => {
                         <h2 style={{ fontSize: '20px', fontWeight: '800' }}>{applications.find(a => a.id === selectedAppId)?.name} — Post-Secondary Application</h2>
                         <div style={{ fontSize: '11px', color: '#64748b' }}>SSW forwarded {applications.find(a => a.id === selectedAppId)?.date} · J. Villeneuve</div>
                       </div>
-                      {applications.find(a => a.id === selectedAppId)?.flags?.map(f => (
+                      {applications.find(a => a.id === selectedAppId)?.flags?.map((f: string) => (
                         <span key={f} className={`admin-badge badge-${f.toLowerCase()}`} style={{ fontSize: '9px', padding: '4px 10px' }}>{f}</span>
                       ))}
                     </div>
@@ -1576,23 +1738,23 @@ const StaffDashboard: React.FC = () => {
                       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '32px 24px' }}>
                         <div>
                           <label style={{ fontSize: '9px', fontWeight: '700', color: '#94a3b8', textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>NAME</label>
-                          <div style={{ fontSize: '13px', fontWeight: '700' }}>{applications.find(a => a.id === selectedAppId)?.name}</div>
+                          <div style={{ fontSize: '13px', fontWeight: '700' }}>{applications.find(a => a.id === selectedAppId)?.student_details?.full_name || applications.find(a => a.id === selectedAppId)?.name}</div>
                         </div>
                         <div>
                           <label style={{ fontSize: '9px', fontWeight: '700', color: '#94a3b8', textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>BENEFICIARY #</label>
-                          <div style={{ fontSize: '13px', fontWeight: '700' }}>DGG-00412</div>
+                          <div style={{ fontSize: '13px', fontWeight: '700' }}>{applications.find(a => a.id === selectedAppId)?.student_details?.beneficiary_number || 'DGG-00000'}</div>
                         </div>
                         <div>
                           <label style={{ fontSize: '9px', fontWeight: '700', color: '#94a3b8', textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>SFA STATUS</label>
-                          <div style={{ fontSize: '13px', fontWeight: '700' }}>No</div>
+                          <div style={{ fontSize: '13px', fontWeight: '700' }}>{applications.find(a => a.id === selectedAppId)?.student_details?.is_sfa_active ? 'Yes' : 'No'}</div>
                         </div>
                         <div>
                           <label style={{ fontSize: '9px', fontWeight: '700', color: '#94a3b8', textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>INSTITUTION</label>
-                          <div style={{ fontSize: '13px', fontWeight: '700' }}>U of Calgary</div>
+                          <div style={{ fontSize: '13px', fontWeight: '700' }}>{applications.find(a => a.id === selectedAppId)?.institution || applications.find(a => a.id === selectedAppId)?.form_data?.institution || 'N/A'}</div>
                         </div>
                         <div>
                           <label style={{ fontSize: '9px', fontWeight: '700', color: '#94a3b8', textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>PROGRAM</label>
-                          <div style={{ fontSize: '13px', fontWeight: '700' }}>Bachelor of Education — Year 3</div>
+                          <div style={{ fontSize: '13px', fontWeight: '700' }}>{applications.find(a => a.id === selectedAppId)?.program || applications.find(a => a.id === selectedAppId)?.form_data?.program || 'N/A'}</div>
                         </div>
                         <div>
                           <label style={{ fontSize: '9px', fontWeight: '700', color: '#94a3b8', textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>ENROLLMENT</label>
@@ -1600,15 +1762,15 @@ const StaffDashboard: React.FC = () => {
                         </div>
                         <div>
                           <label style={{ fontSize: '9px', fontWeight: '700', color: '#94a3b8', textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>SEMESTER</label>
-                          <div style={{ fontSize: '13px', fontWeight: '700' }}>Fall 2025</div>
+                          <div style={{ fontSize: '13px', fontWeight: '700' }}>{applications.find(a => a.id === selectedAppId)?.form_data?.semester || 'Fall 2025'}</div>
                         </div>
                         <div>
                           <label style={{ fontSize: '9px', fontWeight: '700', color: '#94a3b8', textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>DEPENDENTS</label>
-                          <div style={{ fontSize: '13px', fontWeight: '700' }}>2 dependents</div>
+                          <div style={{ fontSize: '13px', fontWeight: '700' }}>{applications.find(a => a.id === selectedAppId)?.form_data?.dependentsCount || '0'}</div>
                         </div>
                         <div>
                           <label style={{ fontSize: '9px', fontWeight: '700', color: '#94a3b8', textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>FORM B</label>
-                          <div style={{ fontSize: '13px', fontWeight: '700', color: '#166534' }}>✓ Received & Verified</div>
+                          <div style={{ fontSize: '13px', fontWeight: '700', color: '#c2410c' }}>Pending Verification</div>
                         </div>
                       </div>
                     </div>
@@ -1659,8 +1821,8 @@ const StaffDashboard: React.FC = () => {
                               <td style={{ color: '#cbd5e1' }}>—</td>
                             </tr>
                             <tr style={{ borderTop: '2px solid #e2e8f0', background: '#f8fafc' }}>
-                              <td colSpan={3} style={{ fontWeight: '800', textAlign: 'right', paddingRight: '20px' }}>Total</td>
-                              <td colSpan={2} style={{ fontSize: '16px', fontWeight: '800' }}>$12,400</td>
+                              <td colSpan={3} style={{ fontWeight: '800', textAlign: 'right', paddingRight: '20px' }}>Total Authorized</td>
+                              <td colSpan={2} style={{ fontSize: '16px', fontWeight: '800' }}>${parseFloat(applications.find(a => a.id === selectedAppId)?.amount || 0).toLocaleString()}</td>
                             </tr>
                           </tbody>
                         </table>
@@ -1737,9 +1899,8 @@ const StaffDashboard: React.FC = () => {
                         <div style={{ fontSize: '10px', color: '#cc3333', marginTop: '8px' }}>A written reason is required for exceptions, denials, and deferrals.</div>
                       </div>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                        <button className="director-main-btn approve" onClick={() => setShowConfirmModal(true)}>✓ APPROVE APPLICATION</button>
-                        <button className="director-main-btn deny">✕ DENY APPLICATION</button>
-                        <button className="director-main-btn defer">↻ DEFER / REQUEST INFO</button>
+                        <button className="director-main-btn approve" onClick={() => handleDecision('accepted')}>✓ APPROVE APPLICATION</button>
+                        <button className="director-main-btn deny" onClick={() => handleDecision('rejected')}>✕ DENY APPLICATION</button>
                       </div>
                     </div>
                   </div>
@@ -1751,13 +1912,12 @@ const StaffDashboard: React.FC = () => {
                     <div style={{ padding: '24px' }}>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
                         {[
-                          { title: 'Application received via portal', sub: 'Mar 3 · 2:34pm', color: '#166534' },
-                          { title: 'Funding auto-calculated: $12,400', sub: 'Mar 3 · 2:34pm · System', color: '#166534' },
-                          { title: 'Form B received & verified', sub: 'Mar 5 · 10:12am', color: '#166534' },
-                          { title: 'Funding override applied by SSW', sub: 'See override details', color: '#eab308' },
-                          { title: 'Forwarded to Director by J. Villeneuve', sub: 'Today · 9:45am', color: '#166534' },
+                          { title: 'Application received via portal', sub: `${new Date(applications.find(a => a.id === selectedAppId)?.submitted_at).toLocaleDateString()} · Automated`, color: '#166534' },
+                          { title: `Funding auto-calculated: $${parseFloat(applications.find(a => a.id === selectedAppId)?.amount || 0).toLocaleString()}`, sub: 'System Decision Engine', color: '#166534' },
+                          { title: 'Awaiting Form B verification', sub: 'Internal Process', color: '#eab308' },
+                          { title: 'Forwarded to Director for approval', sub: 'Action by Staff', color: '#166534' },
                         ].map((item, i) => (
-                          <div key={i} style={{ position: 'relative', paddingLeft: '24px', borderLeft: i < 4 ? '1px solid #e2e8f0' : 'none' }}>
+                          <div key={i} style={{ position: 'relative', paddingLeft: '24px', borderLeft: i < 3 ? '1px solid #e2e8f0' : 'none' }}>
                             <div style={{ position: 'absolute', left: '-6px', top: '0', width: '10px', height: '10px', background: item.color, borderRadius: '50%', border: '2px solid #fff' }}></div>
                             <div style={{ fontSize: '12px', fontWeight: '700', color: '#1e293b' }}>{item.title}</div>
                             <div style={{ fontSize: '10px', color: '#64748b', marginTop: '4px' }}>{item.sub}</div>
@@ -1799,13 +1959,7 @@ const StaffDashboard: React.FC = () => {
                 </div>
                 <div className="modal-footer">
                   <button className="btn-secondary" onClick={() => setShowConfirmModal(false)}>Cancel</button>
-                  <button className="btn-confirm-approval" onClick={() => {
-                    setShowConfirmModal(false);
-                    // Simulate approval
-                    const updatedApps = applications.map(a => a.id === selectedAppId ? { ...a, status: 'approved', decisionBy: 'K. Baton', decisionWhen: 'Today' } : a);
-                    setApplications(updatedApps as any);
-                    setCurrentView('director-queue');
-                  }}>✓ CONFIRM APPROVAL</button>
+                  <button className="btn-confirm-approval" onClick={() => handleDecision('accepted')}>✓ CONFIRM APPROVAL</button>
                 </div>
               </div>
             </div>
@@ -1844,7 +1998,6 @@ const StaffDashboard: React.FC = () => {
           )}
         </main>
       </div>
-
     </div>
   );
 };

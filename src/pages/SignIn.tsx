@@ -1,11 +1,40 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import API from '../api/client';
 import '../styles/auth.css';
 
 const SignIn: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [showGuestModal, setShowGuestModal] = useState(false);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
+
+  const handleSignIn = async () => {
+    setError(null);
+    setIsLoading(true);
+    try {
+      const response = await API.login({ email, password });
+      localStorage.setItem('dgg_token', response.access);
+      localStorage.setItem('dgg_refresh', response.refresh);
+      
+      // Fetch user role
+      const user = await API.getMe();
+      localStorage.setItem('dgg_role', user.role);
+
+      if (user.role === 'admin' || user.role === 'director') {
+        navigate('/staff');
+      } else {
+        navigate('/dashboard');
+      }
+    } catch (err: any) {
+      setError(err.message || 'Login failed. Please check your credentials.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const togglePassword = () => {
     setShowPassword(!showPassword);
@@ -56,6 +85,8 @@ const SignIn: React.FC = () => {
               id="email"
               type="text"
               placeholder="e.g. marie.beaulieu@email.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
               autoComplete="username"
               style={{ background: '#fff' }}
             />
@@ -69,6 +100,8 @@ const SignIn: React.FC = () => {
                 id="password"
                 type={showPassword ? "text" : "password"}
                 placeholder="••••••••••••"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
                 autoComplete="current-password"
                 style={{ background: '#fff' }}
               />
@@ -82,6 +115,7 @@ const SignIn: React.FC = () => {
                 {showPassword ? 'Hide' : 'Show'}
               </button>
             </div>
+            {error && <div style={{ color: '#ef4444', fontSize: '12px', marginTop: '8px', fontWeight: '600' }}>{error}</div>}
             <div style={{ textAlign: 'right', marginTop: '8px' }}>
               <Link to="/forgot-password" style={{ fontSize: '12px', color: '#64748b', textDecoration: 'none', fontWeight: '600' }}>Forgot password? →</Link>
             </div>
@@ -90,10 +124,11 @@ const SignIn: React.FC = () => {
           <button 
             className="btn-auth-primary" 
             type="button"
-            onClick={() => navigate('/dashboard')}
-            style={{ marginTop: '24px' }}
+            disabled={isLoading}
+            onClick={handleSignIn}
+            style={{ marginTop: '24px', opacity: isLoading ? 0.7 : 1 }}
           >
-            SIGN IN TO PORTAL &nbsp;→
+            {isLoading ? 'SIGNING IN...' : 'SIGN IN TO PORTAL \u00a0\u2192'}
           </button>
 
           <div style={{ marginTop: '32px', textAlign: 'center', borderTop: '1px solid #f1f5f9', paddingTop: '24px' }}>

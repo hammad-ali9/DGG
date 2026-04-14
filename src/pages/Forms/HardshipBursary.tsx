@@ -1,23 +1,47 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import API from '../../api/client';
 import FormWizard from '../../components/Forms/FormWizard';
 import '../../styles/forms.css';
 
 interface HardshipBursaryProps {
+  profile?: any;
   onBack: () => void;
   onComplete: () => void;
 }
 
-const HardshipBursary: React.FC<HardshipBursaryProps> = ({ onBack, onComplete }) => {
+const HardshipBursary: React.FC<HardshipBursaryProps> = ({ profile, onBack, onComplete }) => {
   const [currentStep, setCurrentStep] = useState(1);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [isSubmitted, setIsSubmitted] = useState(false);
-  const [expenses, setExpenses] = useState([{ id: 1, purpose: '', amount: 0 }]);
 
-  const steps = [
-    { id: 1, label: 'Student Info' },
-    { id: 2, label: 'Emergency Case' },
-    { id: 3, label: 'Fund Breakdown' },
-    { id: 4, label: 'Declaration' }
-  ];
+  // BUG 1: Connectivity & State
+  const [formData, setFormData] = useState({
+    studentName: '',
+    studentId: '',
+    institution: '',
+    hardshipDescription: '',
+    othersAttempted: '',
+    signature: '',
+    isCompliant: true
+  });
+
+  const [expenses, setExpenses] = useState([{ id: Date.now(), purpose: '', amount: 0 }]);
+
+  // Fix: Only auto-fill if the fields are currently empty to avoid overwriting user input during polling
+  useEffect(() => {
+    if (profile) {
+      setFormData(prev => ({
+        ...prev,
+        studentName: prev.studentName || `${profile.first_name || ''} ${profile.last_name || ''}`.trim(),
+        studentId: prev.studentId || profile.beneficiary_number || ''
+      }));
+    }
+  }, [profile]);
+
+  const handleInputChange = (field: string, value: any) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
+  };
 
   const addExpense = () => {
     setExpenses([...expenses, { id: Date.now(), purpose: '', amount: 0 }]);
@@ -33,7 +57,40 @@ const HardshipBursary: React.FC<HardshipBursaryProps> = ({ onBack, onComplete })
 
   const totalAmount = expenses.reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
 
+  const steps = [
+    { id: 1, label: 'Student Info' },
+    { id: 2, label: 'Emergency Case' },
+    { id: 3, label: 'Fund Breakdown' },
+    { id: 4, label: 'Declaration' }
+  ];
+
+  // BUG 5: Validation
+  const canGoNext = () => {
+    if (currentStep === 1) {
+      return formData.studentName && formData.institution && formData.isCompliant;
+    }
+    if (currentStep === 2) {
+      return formData.hardshipDescription.length > 20 && formData.othersAttempted.length > 10;
+    }
+    if (currentStep === 3) {
+      return totalAmount > 0 && totalAmount <= 500 && expenses.every(e => e.purpose && e.amount > 0);
+    }
+    return true;
+  };
+
   const handleNext = () => {
+    if (!canGoNext()) {
+      setError(currentStep === 1 
+        ? 'Please fill in student and institution details.' 
+        : currentStep === 2
+          ? 'Please provide a detailed description of the hardship and other supports tried.'
+          : totalAmount > 500 
+            ? 'Total requested cannot exceed $500.00' 
+            : 'Please provide valid expense items.'
+      );
+      return;
+    }
+    setError(null);
     if (currentStep < 4) setCurrentStep(currentStep + 1);
   };
 
@@ -42,8 +99,44 @@ const HardshipBursary: React.FC<HardshipBursaryProps> = ({ onBack, onComplete })
     else onBack();
   };
 
-  const handleSubmit = () => {
-    setIsSubmitted(true);
+  // BUG 4: Connected Submission Flow
+  const handleSubmit = async () => {
+    if (!formData.signature) {
+      setError('Student signature is required.');
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+    try {
+      const submissionData = new FormData();
+      
+      const answers = [
+        { field_label: 'Student Name', answer_text: formData.studentName },
+        { field_label: 'Student ID', answer_text: formData.studentId },
+        { field_label: 'Institution', answer_text: formData.institution },
+        { field_label: 'Hardship Description', answer_text: formData.hardshipDescription },
+        { field_label: 'Others Attempted', answer_text: formData.othersAttempted },
+        { field_label: 'Total Requested', answer_text: `$${totalAmount.toFixed(2)}` },
+        { field_label: 'Expense Breakdown', answer_text: JSON.stringify(expenses.map(e => ({ purpose: e.purpose, amount: e.amount }))) },
+        { field_label: 'Digital Signature', answer_text: formData.signature }
+      ];
+
+      answers.forEach((ans, i) => {
+        submissionData.append(`answers[${i}]field_label`, ans.field_label);
+        submissionData.append(`answers[${i}]answer_text`, ans.answer_text);
+      });
+
+      await API.submitApplication({
+        form_type: 'Hardship',
+        form_data: submissionData
+      });
+      setIsSubmitted(true);
+    } catch (err: any) {
+      setError(err.message || 'Failed to submit hardship application.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   if (isSubmitted) {
@@ -54,11 +147,8 @@ const HardshipBursary: React.FC<HardshipBursaryProps> = ({ onBack, onComplete })
             <Icons.Check />
           </div>
           <h2 style={{ fontSize: '24px', fontWeight: '700', marginBottom: '12px' }}>Emergency Request Logged</h2>
-          <div style={{ background: '#fff8f0', border: '1px solid #ffcc80', padding: '8px 16px', borderRadius: '4px', display: 'inline-block', fontSize: '11px', fontWeight: '700', color: '#7a4a00', marginBottom: '24px' }}>
-            PRIORITY: HIGH
-          </div>
           <p style={{ fontSize: '14px', color: '#4a5568', lineHeight: '1.6', maxWidth: '400px', margin: '0 auto 32px' }}>
-            Your hardship application is marked for priority review. An education officer will contact you within 48 hours to discuss your situation.
+            Your hardship application is marked for priority review. An education officer will contact you within 48 hours.
           </p>
           <button className="wizard-btn-next" style={{ margin: '0 auto', background: '#e65100' }} onClick={() => onComplete()}>
             Back to Dashboard
@@ -85,145 +175,129 @@ const HardshipBursary: React.FC<HardshipBursaryProps> = ({ onBack, onComplete })
       onBack={handleBack}
       onNext={handleNext}
       isLastStep={currentStep === 4}
+      nextDisabled={isLoading}
       onSubmit={handleSubmit}
     >
+      {error && (
+        <div className="alert-box error fade-in" style={{ background: '#fff2f2', border: '1px solid #ffcccc', color: '#cc0000', padding: '12px 16px', borderRadius: '6px', marginBottom: '20px', fontSize: '13px' }}>
+          <strong>Error:</strong> {error}
+        </div>
+      )}
+
       {currentStep === 1 && (
         <div className="fade-in">
-          <div className="policy-note warn" style={{ marginBottom: 24 }}>
-            <strong>Last Resort Notice:</strong> Hardship support is for short-term emergencies only. You must have exhausted all other avenues before applying.
+          <div className="policy-note warn" style={{ marginBottom: 24, padding: '12px', background: '#fffbeb', borderRadius: '4px', borderLeft: '4px solid #f59e0b', color: '#92400e' }}>
+            <strong>Last Resort Notice:</strong> Hardship support is for short-term emergencies only.
           </div>
 
-          <div className="section-divider">Student & Academic Info</div>
-          <table className="form-grid">
-            <tbody>
-              <tr>
-                <td width="60%">
-                  <label className="field-label">Student Full Name *</label>
-                  <input className="field-input" type="text" placeholder="Marie Beaulieu" defaultValue="Marie Beaulieu" />
-                </td>
-                <td width="40%">
-                  <label className="field-label">Student ID *</label>
-                  <input className="field-input" type="text" placeholder="DGG-00412" defaultValue="DGG-00412" />
-                </td>
-              </tr>
-              <tr>
-                <td colSpan={2}>
-                  <label className="field-label">Educational Institution *</label>
-                  <input className="field-input" type="text" placeholder="e.g. University of Calgary" />
-                </td>
-              </tr>
-            </tbody>
-          </table>
-
-          <div style={{ marginTop: 20 }}>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
-              <input type="checkbox" defaultChecked />
-              <span style={{ fontSize: '13px', color: '#475569' }}>I am currently active in my program and compliant with reporting.</span>
-            </label>
+          <div style={{ background: '#fff', border: '1px solid #e0e0e0', borderRadius: '4px', padding: '20px' }}>
+             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
+                <div>
+                   <label className="field-label">Student Full Name *</label>
+                   <input className="field-input" value={formData.studentName} onChange={e => handleInputChange('studentName', e.target.value)} />
+                </div>
+                <div>
+                   <label className="field-label">Student ID / Beneficiary #</label>
+                   <input className="field-input" value={formData.studentId} onChange={e => handleInputChange('studentId', e.target.value)} />
+                </div>
+             </div>
+             <div style={{ marginBottom: '16px' }}>
+                <label className="field-label">Educational Institution *</label>
+                <input className="field-input" value={formData.institution} onChange={e => handleInputChange('institution', e.target.value)} placeholder="e.g. University of Calgary" />
+             </div>
+             <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '12px' }}>
+                <input type="checkbox" checked={formData.isCompliant} onChange={e => handleInputChange('isCompliant', e.target.checked)} />
+                <span>I am currently active in my program and compliant with reporting.</span>
+             </label>
           </div>
         </div>
       )}
 
       {currentStep === 2 && (
         <div className="fade-in">
-          <div className="section-divider">Nature of Hardship</div>
-          <label className="field-label">Describe the emergency financial hardship *</label>
-          <textarea 
-            className="field-input" 
-            placeholder="What happened, when, and immediate impact..."
-            style={{ width: '100%', height: '120px', padding: '12px', marginBottom: 24 }}
-          />
+          <div style={{ background: '#fff', border: '1px solid #e0e0e0', borderRadius: '4px', padding: '20px' }}>
+             <label className="field-label">Nature of Hardship *</label>
+             <textarea 
+               className="field-input" 
+               value={formData.hardshipDescription}
+               onChange={e => handleInputChange('hardshipDescription', e.target.value)}
+               placeholder="What happened, when, and immediate impact..."
+               style={{ width: '100%', height: '120px', padding: '12px', marginBottom: 20 }}
+             />
 
-          <div className="section-divider" style={{ borderColor: '#e65100' }}>Other Supports Attempted</div>
-          <div className="policy-note warn" style={{ background: '#fffbeb', color: '#92400e', borderColor: '#f59e0b', marginBottom: 12 }}>
-            <strong>Required:</strong> You MUST indicate what other avenues you have pursued (e.g. food banks, family support, campus emergency funds).
+             <label className="field-label">Other Supports Attempted *</label>
+             <div style={{ fontSize: '11px', color: '#666', marginBottom: '8px' }}>
+                e.g. food banks, family support, campus emergency funds.
+             </div>
+             <textarea 
+               className="field-input" 
+               value={formData.othersAttempted}
+               onChange={e => handleInputChange('othersAttempted', e.target.value)}
+               placeholder="How have you tried to resolve this already?"
+               style={{ width: '100%', height: '100px', padding: '12px' }}
+             />
           </div>
-          <textarea 
-            className="field-input" 
-            placeholder="List other options you have tried to resolve this..."
-            style={{ width: '100%', height: '100px', padding: '12px', borderColor: '#e65100' }}
-          />
         </div>
       )}
 
       {currentStep === 3 && (
         <div className="fade-in">
-          <div className="section-divider">Fund Breakdown (Max $500)</div>
-          
-          <table className="expense-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead>
-              <tr style={{ background: '#f8fafc', textAlign: 'left' }}>
-                <th style={{ padding: '12px', borderBottom: '2px solid #e2e8f0', fontSize: '11px', textTransform: 'uppercase' }}>Expense / Purpose</th>
-                <th style={{ padding: '12px', borderBottom: '2px solid #e2e8f0', fontSize: '11px', textTransform: 'uppercase', width: '120px' }}>Amount ($)</th>
-                <th style={{ borderBottom: '2px solid #e2e8f0', width: '40px' }}></th>
-              </tr>
-            </thead>
-            <tbody>
-              {expenses.map((exp) => (
-                <tr key={exp.id}>
-                  <td style={{ padding: '8px' }}>
-                    <input 
-                      className="field-input" 
-                      type="text" 
-                      placeholder="e.g. Emergency Utilities" 
-                      value={exp.purpose}
-                      onChange={(e) => updateExpense(exp.id, 'purpose', e.target.value)}
-                    />
-                  </td>
-                  <td style={{ padding: '8px' }}>
-                    <input 
-                      className="field-input" 
-                      type="number" 
-                      placeholder="0.00" 
-                      value={exp.amount || ''}
-                      onChange={(e) => updateExpense(exp.id, 'amount', e.target.value)}
-                    />
-                  </td>
-                  <td>
-                    <button className="btn-icon" onClick={() => removeExpense(exp.id)}>\u00d7</button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div style={{ background: '#fff', border: '1px solid #e0e0e0', borderRadius: '4px', padding: '20px' }}>
+            <div className="section-divider">Fund Breakdown (Max $500)</div>
+            <table style={{ width: '100%', marginBottom: '16px' }}>
+               <thead>
+                  <tr style={{ textAlign: 'left', fontSize: '11px', color: '#666' }}>
+                     <th>Expense / Purpose</th>
+                     <th style={{ width: '120px' }}>Amount ($)</th>
+                     <th style={{ width: '40px' }}></th>
+                  </tr>
+               </thead>
+               <tbody>
+                  {expenses.map((exp) => (
+                    <tr key={exp.id}>
+                      <td style={{ padding: '4px' }}>
+                        <input className="field-input" value={exp.purpose} onChange={e => updateExpense(exp.id, 'purpose', e.target.value)} placeholder="e.g. Utilities" />
+                      </td>
+                      <td style={{ padding: '4px' }}>
+                        <input className="field-input" type="number" value={exp.amount || ''} onChange={e => updateExpense(exp.id, 'amount', e.target.value)} placeholder="0.00" />
+                      </td>
+                      <td>
+                        <button className="btn-icon" onClick={() => removeExpense(exp.id)}>\u00d7</button>
+                      </td>
+                    </tr>
+                  ))}
+               </tbody>
+            </table>
+            <button className="btn-ghost" style={{ fontSize: '11px' }} onClick={addExpense}>+ Add Row</button>
 
-          <button className="btn-ghost" style={{ marginTop: 12 }} onClick={addExpense}>+ Add Row</button>
-
-          <div style={{ marginTop: 24, padding: '16px', borderRadius: '8px', background: totalAmount > 500 ? '#fef2f2' : '#f8fafc', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: '14px', fontWeight: '700' }}>Total Requested:</span>
-            <span style={{ fontSize: '20px', fontWeight: '800', color: totalAmount > 500 ? '#dc2626' : '#1e293b' }}>
-              ${totalAmount.toFixed(2)}
-            </span>
-          </div>
-          {totalAmount > 500 && (
-            <div style={{ color: '#dc2626', fontSize: '11px', marginTop: 8, textAlign: 'right', fontWeight: '600' }}>
-              Warning: Maximum bursary amount is $500.00
+            <div style={{ marginTop: 24, padding: '16px', borderRadius: '4px', background: totalAmount > 500 ? '#fef2f2' : '#f8fafc', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+               <span style={{ fontSize: '14px', fontWeight: '700' }}>Total Requested:</span>
+               <span style={{ fontSize: '20px', fontWeight: '800', color: totalAmount > 500 ? '#dc2626' : '#1e293b' }}>
+                 ${totalAmount.toFixed(2)}
+               </span>
             </div>
-          )}
+          </div>
         </div>
       )}
 
       {currentStep === 4 && (
         <div className="fade-in">
-          <div className="section-divider">Student Declaration</div>
-          <div className="decl-panel">
-            I confirm that the information provided is accurate and complete. I understand that hardship support is discretionary and considered a last resort. I have exhausted all other available resources.
-          </div>
-          
-          <table className="form-grid">
-            <tbody>
-              <tr>
-                <td width="70%">
+          <div style={{ background: '#fff', border: '1px solid #e0e0e0', borderRadius: '4px', padding: '20px' }}>
+             <div className="decl-panel" style={{ marginBottom: '20px' }}>
+                I confirm that the information provided is accurate and complete. I understand that hardship support is discretionary and considered a last resort.
+             </div>
+             
+             <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '16px' }}>
+                <div>
                   <label className="field-label">Student Digital Signature *</label>
-                  <input className="field-input" type="text" placeholder="Type your full legal name" />
-                </td>
-                <td width="30%">
-                  <label className="field-label">Date *</label>
-                  <input className="field-input" type="text" defaultValue="2026/03/28" />
-                </td>
-              </tr>
-            </tbody>
-          </table>
+                  <input className="field-input" value={formData.signature} onChange={e => handleInputChange('signature', e.target.value)} placeholder="Type name to sign" />
+                </div>
+                <div>
+                  <label className="field-label">Date</label>
+                  <input className="field-input" disabled value={new Date().toLocaleDateString()} />
+                </div>
+             </div>
+          </div>
         </div>
       )}
     </FormWizard>

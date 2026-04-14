@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import API from '../api/client';
 import '../styles/auth.css';
 
 interface Dependent {
@@ -115,6 +116,70 @@ const SignUp: React.FC = () => {
     setEligResult({ style, title, desc, isApproved });
   }, [eligibility]);
 
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [formData, setFormData] = useState({
+    firstName: '',
+    lastName: '',
+    email: '',
+    password: '',
+    confirmPassword: '',
+    beneficiaryNo: '',
+    treatyNum: '',
+    dob: '',
+    phone: ''
+  });
+
+  const normalizeDate = (dateStr: string) => {
+    // Expects DD/MM/YYYY or DD-MM-YYYY or DD.MM.YYYY
+    const parts = dateStr.split(/[\/\-\.]/);
+    if (parts.length === 3) {
+      const [d, m, y] = parts;
+      if (y.length === 4 && m.length <= 2 && d.length <= 2) {
+        return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+      }
+    }
+    return dateStr; // Fallback to raw string
+  };
+
+  const handleSignUp = async () => {
+    if (formData.password !== formData.confirmPassword) {
+      setError('Passwords do not match');
+      return;
+    }
+    setError(null);
+    setIsLoading(true);
+    try {
+      // Normalize DOB to YYYY-MM-DD
+      const normalizedData = { 
+        ...formData, 
+        dob: normalizeDate(formData.dob) 
+      };
+
+      await API.register({
+        ...normalizedData,
+        eligibility
+      });
+      navigate('/signin');
+    } catch (err: any) {
+      if (err.data && typeof err.data === 'object' && !Array.isArray(err.data)) {
+        // Extract first validation error if it's a field-level error
+        const firstField = Object.keys(err.data)[0];
+        const firstError = err.data[firstField];
+        const errorMessage = Array.isArray(firstError) ? firstError[0] : String(firstError);
+        setError(`${firstField.replace('_', ' ').toUpperCase()}: ${errorMessage}`);
+      } else {
+        setError(err.message || 'Registration failed');
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const updateFormData = (field: string, value: string) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
+  };
+
   return (
     <div className="auth-root">
       <div className="page-layout">
@@ -225,33 +290,45 @@ const SignUp: React.FC = () => {
                 <div className="field-row">
                   <div className="field-group">
                     <label className="field-label">First Name <span className="required">*</span></label>
-                    <input className="field-input" type="text" placeholder="Marie" />
+                    <input className="field-input" type="text" placeholder="Marie" value={formData.firstName} onChange={e => updateFormData('firstName', e.target.value)} />
                   </div>
                   <div className="field-group">
                     <label className="field-label">Last Name <span className="required">*</span></label>
-                    <input className="field-input" type="text" placeholder="Beaulieu" />
+                    <input className="field-input" type="text" placeholder="Beaulieu" value={formData.lastName} onChange={e => updateFormData('lastName', e.target.value)} />
                   </div>
                 </div>
 
                 <div className="field-row">
                   <div className="field-group">
                     <label className="field-label">Date of Birth <span className="required">*</span></label>
-                    <input className="field-input" type="text" placeholder="DD / MM / YYYY" />
+                    <input 
+                      className="field-input" 
+                      type="text" 
+                      placeholder="DD / MM / YYYY" 
+                      value={formData.dob} 
+                      onChange={e => updateFormData('dob', e.target.value)} 
+                    />
                   </div>
                   <div className="field-group">
                     <label className="field-label">DGG Beneficiary # <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0, fontSize: '9px', color: '#999' }}>(Optional)</span></label>
-                    <input className="field-input" type="text" placeholder="e.g. DGG-00412" />
+                    <input className="field-input" type="text" placeholder="e.g. DGG-00412" value={formData.beneficiaryNo} onChange={e => updateFormData('beneficiaryNo', e.target.value)} />
                   </div>
                 </div>
 
                 <div className="field-row">
                   <div className="field-group">
                     <label className="field-label">Email Address</label>
-                    <input className="field-input" type="email" placeholder="e.g. marie@email.com" />
+                    <input className="field-input" type="email" placeholder="e.g. marie@email.com" value={formData.email} onChange={e => updateFormData('email', e.target.value)} />
                   </div>
                   <div className="field-group">
                     <label className="field-label">Phone Number <span className="required">*</span></label>
-                    <input className="field-input" type="tel" placeholder="(867) 000-0000" />
+                    <input 
+                      className="field-input" 
+                      type="tel" 
+                      placeholder="(867) 000-0000" 
+                      value={formData.phone} 
+                      onChange={e => updateFormData('phone', e.target.value)} 
+                    />
                   </div>
                 </div>
 
@@ -298,16 +375,24 @@ const SignUp: React.FC = () => {
                 <div className="field-row">
                   <div className="field-group">
                     <label className="field-label">Password <span className="required">*</span></label>
-                    <input className="field-input" type="password" placeholder="••••••••" />
+                    <input className="field-input" type="password" placeholder="••••••••" value={formData.password} onChange={e => updateFormData('password', e.target.value)} />
                   </div>
                   <div className="field-group">
                     <label className="field-label">Confirm Password <span className="required">*</span></label>
-                    <input className="field-input" type="password" placeholder="••••••••" />
+                    <input className="field-input" type="password" placeholder="••••••••" value={formData.confirmPassword} onChange={e => updateFormData('confirmPassword', e.target.value)} />
                   </div>
                 </div>
 
-                <button className="btn-auth-primary" onClick={() => navigate('/dashboard')} disabled={!eligResult.isApproved} type="button" style={{ marginTop: '24px' }}>
-                  Create My Account &nbsp;→
+                {error && <div style={{ color: '#ef4444', fontSize: '11px', marginTop: '12px', fontWeight: '600' }}>{error}</div>}
+
+                <button 
+                  className="btn-auth-primary" 
+                  onClick={handleSignUp} 
+                  disabled={isLoading || !eligResult.isApproved} 
+                  type="button" 
+                  style={{ marginTop: '24px', opacity: isLoading ? 0.7 : 1 }}
+                >
+                  {isLoading ? 'CREATING ACCOUNT...' : 'Create My Account \u00a0\u2192'}
                 </button>
               </div>
             ) : (

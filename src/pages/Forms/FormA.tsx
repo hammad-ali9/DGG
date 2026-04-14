@@ -1,24 +1,33 @@
 import React, { useState } from 'react';
+import API from '../../api/client';
 import FormWizard from '../../components/Forms/FormWizard';
 import '../../styles/forms.css';
 
 interface FormAProps {
+  profile?: any;
   onBack: () => void;
   onComplete: () => void;
 }
 
-const FormA: React.FC<FormAProps> = ({ onBack, onComplete }) => {
+const FormA: React.FC<FormAProps> = ({ profile, onBack, onComplete }) => {
   const [currentStep, setCurrentStep] = useState(1);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [showFormBPreview, setShowFormBPreview] = useState(false);
+  const [selectedFiles, setSelectedFiles] = useState<Record<string, File | null>>({});
+
+  const handleFileChange = (label: string, file: File | null) => {
+    setSelectedFiles(prev => ({ ...prev, [label]: file }));
+  };
 
   // Form State for Preview Mapping
   const [formData, setFormData] = useState({
-    firstName: '',
-    lastName: '',
-    phone: '',
-    email: '',
-    studentId: '',
+    firstName: profile?.first_name || '',
+    lastName: profile?.last_name || '',
+    phone: profile?.profile?.phone_number || '',
+    email: profile?.email || '',
+    studentId: profile?.profile?.beneficiary_number || '',
     institution: '',
     program: '',
     semStart: '',
@@ -26,7 +35,7 @@ const FormA: React.FC<FormAProps> = ({ onBack, onComplete }) => {
     registrarEmail: '',
     registrarPhone: '',
     tuition: '',
-    beneficiaryNo: ''
+    beneficiaryNo: profile?.profile?.beneficiary_number || ''
   });
 
   // Eligibility state
@@ -51,8 +60,57 @@ const FormA: React.FC<FormAProps> = ({ onBack, onComplete }) => {
     else onBack();
   };
 
-  const handleSubmit = () => {
-    setIsSubmitted(true);
+  const handleSubmit = async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const formDataObj = new FormData();
+      
+      const allAnswers = [
+        ...Object.entries(formData).map(([key, val]) => ({ field_label: key, answer_text: String(val) })),
+        ...Object.entries(eligAnswers).map(([key, val]) => ({ field_label: `Eligibility ${key}`, answer_text: String(val) })),
+        { field_label: 'bursaryStream', answer_text: getBursaryStream() }
+      ];
+
+      // Add file placeholders to answers and actual files to FormData
+      const totalAnswers = [...allAnswers];
+      const documents = [
+        'Transcripts *', 'Letter of Intent *', 'Reference Letter', 
+        'Status Card *', 'Void Cheque *', 'Extra Docs'
+      ];
+
+      documents.forEach(docLabel => {
+        if (selectedFiles[docLabel]) {
+          totalAnswers.push({ field_label: docLabel, answer_text: 'File Uploaded' });
+        }
+      });
+
+      // Append answers in indexed format for DRF nested serializer
+      totalAnswers.forEach((ans, index) => {
+        formDataObj.append(`answers[${index}]field_label`, ans.field_label);
+        if (ans.answer_text) {
+          formDataObj.append(`answers[${index}]answer_text`, ans.answer_text);
+        }
+        
+        // Match files by checking if this answer index corresponds to a file
+        const file = selectedFiles[ans.field_label];
+        if (file) {
+          formDataObj.append(`answers[${index}]answer_file`, file);
+        }
+      });
+
+      // Find form ID - this would ideally be dynamic but for FormA we'll let API handle it or hardcode
+      await API.submitApplication({
+        form_type: 'FormA',
+        form_data: formDataObj // Pass FormData directly
+      });
+      
+      setIsSubmitted(true);
+    } catch (err: any) {
+      setError(err.message || 'Failed to submit application. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const isEligible = () => {
@@ -118,9 +176,14 @@ const FormA: React.FC<FormAProps> = ({ onBack, onComplete }) => {
       onBack={handleBack}
       onNext={handleNext}
       isLastStep={currentStep === 4}
-      nextDisabled={currentStep === 1 && isPartiallyAnswered() && !isEligible()}
+      nextDisabled={(currentStep === 1 && isPartiallyAnswered() && !isEligible()) || isLoading}
       onSubmit={handleSubmit}
     >
+      {error && (
+        <div className="alert-box error fade-in" style={{ background: '#fff2f2', border: '1px solid #ffcccc', color: '#cc0000', padding: '12px 16px', borderRadius: '6px', marginBottom: '20px', fontSize: '13px' }}>
+          <strong>Error:</strong> {error}
+        </div>
+      )}
       {currentStep === 1 && (
         <div className="fade-in">
           {/* Eligibility Checkbox */}
@@ -473,8 +536,17 @@ const FormA: React.FC<FormAProps> = ({ onBack, onComplete }) => {
                 <div style={{ fontSize: '11.5px', fontWeight: '700', color: '#1e293b' }}>{doc.label}</div>
                 <div style={{ fontSize: '9px', color: '#64748b', marginTop: 2 }}>{doc.desc}</div>
                 <div style={{ display: 'flex', gap: 10, marginTop: 10 }}>
-                  <button className="btn-ghost" style={{ fontSize: 9 }}>Choose File</button>
-                  <span style={{ fontSize: 9, color: '#94a3b8', alignSelf: 'center' }}>No file chosen</span>
+                  <label className="btn-ghost" style={{ fontSize: 9, cursor: 'pointer', display: 'inline-block' }}>
+                    {selectedFiles[doc.label] ? 'Change File' : 'Choose File'}
+                    <input 
+                      type="file" 
+                      style={{ display: 'none' }} 
+                      onChange={(e) => handleFileChange(doc.label, e.target.files?.[0] || null)}
+                    />
+                  </label>
+                  <span style={{ fontSize: 9, color: selectedFiles[doc.label] ? '#1a6b3a' : '#94a3b8', alignSelf: 'center', fontWeight: selectedFiles[doc.label] ? '700' : '400' }}>
+                    {selectedFiles[doc.label]?.name || 'No file chosen'}
+                  </span>
                 </div>
               </div>
             ))}

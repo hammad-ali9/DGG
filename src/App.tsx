@@ -1,4 +1,4 @@
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import SignIn from './pages/SignIn';
 import SignUp from './pages/SignUp';
 import ForgotPassword from './pages/ForgotPassword';
@@ -9,25 +9,34 @@ import HardshipBursary from './pages/Forms/HardshipBursary';
 import FormF from './pages/Forms/FormF';
 import FormG from './pages/Forms/FormG';
 import StandaloneFormWrapper from './components/Forms/StandaloneFormWrapper';
+import ProtectedRoute from './components/Auth/ProtectedRoute';
 
 function App() {
   return (
     <Router>
       <Routes>
-        {/* Set SignIn as the default home page and /signin */}
+        {/* Public Auth Routes */}
         <Route path="/" element={<SignIn />} />
         <Route path="/signin" element={<SignIn />} />
-        {/* Registration page */}
         <Route path="/signup" element={<SignUp />} />
-        {/* Forgot Password page */}
         <Route path="/forgot-password" element={<ForgotPassword />} />
-        {/* Student Dashboard (Unified Shell) */}
-        <Route path="/dashboard" element={<Dashboard />} />
-        {/* Staff Portal */}
-        <Route path="/staff" element={<StaffDashboard />} />
         <Route path="/internal/login" element={<InternalSignIn />} />
 
-        {/* Guest Application Routes */}
+        {/* Protected Student Routes */}
+        <Route path="/dashboard" element={
+          <ProtectedRoute allowedRoles={['student']}>
+            <Dashboard />
+          </ProtectedRoute>
+        } />
+
+        {/* Protected Staff/Director Routes */}
+        <Route path="/staff" element={
+          <ProtectedRoute allowedRoles={['admin', 'director']}>
+            <StaffDashboard />
+          </ProtectedRoute>
+        } />
+
+        {/* Guest Application Routes (Semi-protected or Public based on requirements) */}
         <Route path="/forms/hardship" element={
           <StandaloneFormWrapper>
             {(props) => <HardshipBursary {...props} />}
@@ -43,6 +52,9 @@ function App() {
             {(props) => <FormG {...props} />}
           </StandaloneFormWrapper>
         } />
+
+        {/* Fallback */}
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Router>
   );

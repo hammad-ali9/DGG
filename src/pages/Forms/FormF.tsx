@@ -1,15 +1,45 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import API from '../../api/client';
 import FormWizard from '../../components/Forms/FormWizard';
 import '../../styles/forms.css';
 
 interface FormFProps {
+  profile?: any;
   onBack: () => void;
   onComplete: () => void;
 }
 
-const FormF: React.FC<FormFProps> = ({ onBack, onComplete }) => {
+const FormF: React.FC<FormFProps> = ({ profile, onBack, onComplete }) => {
   const [currentStep, setCurrentStep] = useState(1);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [isSubmitted, setIsSubmitted] = useState(false);
+
+  // BUG 1: Connectivity & State
+  const [formData, setFormData] = useState({
+    orgName: '',
+    supervisorTitle: '',
+    studentName: '',
+    placementStart: '',
+    placementEnd: '',
+    responsibilities: '',
+    performance: '',
+    signature: ''
+  });
+
+  // Fix: Only auto-fill if the fields are currently empty to avoid overwriting user input during polling
+  useEffect(() => {
+    if (profile) {
+      setFormData(prev => ({
+        ...prev,
+        studentName: prev.studentName || `${profile.first_name || ''} ${profile.last_name || ''}`.trim()
+      }));
+    }
+  }, [profile]);
+
+  const handleInputChange = (field: string, value: string) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
+  };
 
   const steps = [
     { id: 1, label: 'Employer & Info' },
@@ -17,7 +47,26 @@ const FormF: React.FC<FormFProps> = ({ onBack, onComplete }) => {
     { id: 3, label: 'Declaration' }
   ];
 
+  // BUG 5: Validation
+  const canGoNext = () => {
+    if (currentStep === 1) {
+      return formData.orgName && formData.supervisorTitle && formData.studentName && formData.placementStart;
+    }
+    if (currentStep === 2) {
+      return formData.responsibilities.length > 10 && formData.performance.length > 10;
+    }
+    return true;
+  };
+
   const handleNext = () => {
+    if (!canGoNext()) {
+      setError(currentStep === 1 
+        ? 'Please fill in all required employer and student information.' 
+        : 'Please provide detailed roles and performance summaries.'
+      );
+      return;
+    }
+    setError(null);
     if (currentStep < 3) setCurrentStep(currentStep + 1);
   };
 
@@ -26,8 +75,44 @@ const FormF: React.FC<FormFProps> = ({ onBack, onComplete }) => {
     else onBack();
   };
 
-  const handleSubmit = () => {
-    setIsSubmitted(true);
+  // BUG 4: Connected Submission Flow
+  const handleSubmit = async () => {
+    if (!formData.signature) {
+      setError('Supervisor signature is required.');
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+    try {
+      const submissionData = new FormData();
+      
+      const answers = [
+        { field_label: 'Organization Name', answer_text: formData.orgName },
+        { field_label: 'Supervisor Title', answer_text: formData.supervisorTitle },
+        { field_label: 'Student Name', answer_text: formData.studentName },
+        { field_label: 'Start Date', answer_text: formData.placementStart },
+        { field_label: 'End Date', answer_text: formData.placementEnd },
+        { field_label: 'Roles/Responsibilities', answer_text: formData.responsibilities },
+        { field_label: 'Work Performance', answer_text: formData.performance },
+        { field_label: 'Supervisor Signature', answer_text: formData.signature }
+      ];
+
+      answers.forEach((ans, i) => {
+        submissionData.append(`answers[${i}]field_label`, ans.field_label);
+        submissionData.append(`answers[${i}]answer_text`, ans.answer_text);
+      });
+
+      await API.submitApplication({
+        form_type: 'FormF',
+        form_data: submissionData
+      });
+      setIsSubmitted(true);
+    } catch (err: any) {
+      setError(err.message || 'Failed to submit practicum report. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   if (isSubmitted) {
@@ -64,107 +149,95 @@ const FormF: React.FC<FormFProps> = ({ onBack, onComplete }) => {
       onBack={handleBack}
       onNext={handleNext}
       isLastStep={currentStep === 3}
+      nextDisabled={isLoading}
       onSubmit={handleSubmit}
     >
+      {error && (
+        <div className="alert-box error fade-in" style={{ background: '#fff2f2', border: '1px solid #ffcccc', color: '#cc0000', padding: '12px 16px', borderRadius: '6px', marginBottom: '20px', fontSize: '13px' }}>
+          <strong>Error:</strong> {error}
+        </div>
+      )}
       {currentStep === 1 && (
         <div className="fade-in">
           <div className="policy-note info" style={{ marginBottom: 24, background: '#f0f4ff', borderLeftColor: '#1a4aaa', color: '#1a4aaa' }}>
-            <strong>Supervisor Notice:</strong> This report is required to release the student's practicum or summer incentive award. Please provide honest feedback.
+            <strong>Supervisor Notice:</strong> This report is required to release the student's practicum or summer incentive award.
           </div>
 
-          <div className="section-divider">Employer Information</div>
-          <table className="form-grid">
-            <tbody>
-              <tr>
-                <td width="60%">
-                  <label className="field-label">Organization / Employer Name *</label>
-                  <input className="field-input" type="text" placeholder="e.g. D\u00e9l\u012c\u0328\u029f\u0119 Got\u2019\u012c\u0328\u029f\u0119 Government" />
-                </td>
-                <td width="40%">
+          <div style={{ background: '#fff', border: '1px solid #e0e0e0', borderRadius: '4px', padding: '16px', marginBottom: '20px' }}>
+            <div className="section-divider">Employer Information</div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
+                <div>
+                  <label className="field-label">Organization Name *</label>
+                  <input className="field-input" value={formData.orgName} onChange={e => handleInputChange('orgName', e.target.value)} placeholder="e.g. DGG" />
+                </div>
+                <div>
                   <label className="field-label">Supervisor Title *</label>
-                  <input className="field-input" type="text" placeholder="e.g. Manager of Education" />
-                </td>
-              </tr>
-            </tbody>
-          </table>
-
-          <div className="section-divider">Student (Employee) Information</div>
-          <table className="form-grid">
-            <tbody>
-              <tr>
-                <td width="50%">
+                  <input className="field-input" value={formData.supervisorTitle} onChange={e => handleInputChange('supervisorTitle', e.target.value)} placeholder="e.g. Director of Operations" />
+                </div>
+            </div>
+            
+            <div className="section-divider">Student Information</div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '12px' }}>
+                <div>
                   <label className="field-label">Student Full Name *</label>
-                  <input className="field-input" type="text" placeholder="Marie Beaulieu" defaultValue="Marie Beaulieu" />
-                </td>
-                <td width="50%">
-                  <label className="field-label">Student SIN/ID *</label>
-                  <input className="field-input" type="password" placeholder="\u2022\u2022\u2022-\u2022\u2022\u2022-\u2022\u2022\u2022" />
-                </td>
-              </tr>
-              <tr>
-                <td>
+                  <input className="field-input" value={formData.studentName} onChange={e => handleInputChange('studentName', e.target.value)} />
+                </div>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginTop: '12px' }}>
+                <div>
                   <label className="field-label">Placement Start Date *</label>
-                  <input className="field-input" type="text" placeholder="YYYY/MM/DD" />
-                </td>
-                <td>
+                  <input className="field-input" type="date" value={formData.placementStart} onChange={e => handleInputChange('placementStart', e.target.value)} />
+                </div>
+                <div>
                   <label className="field-label">Placement End Date *</label>
-                  <input className="field-input" type="text" placeholder="YYYY/MM/DD" />
-                </td>
-              </tr>
-            </tbody>
-          </table>
+                  <input className="field-input" type="date" value={formData.placementEnd} onChange={e => handleInputChange('placementEnd', e.target.value)} />
+                </div>
+            </div>
+          </div>
         </div>
       )}
 
       {currentStep === 2 && (
         <div className="fade-in">
-          <div className="section-divider">Roles and Responsibilities</div>
-          <div className="policy-note info" style={{ marginBottom: 12 }}>
-            List the key tasks the student was responsible for during their placement.
-          </div>
-          <textarea 
-            className="field-input" 
-            placeholder="e.g. Assisted with archival research, prepared community briefing notes..."
-            style={{ width: '100%', height: '120px', padding: '12px', marginBottom: 24 }}
-          />
+          <div style={{ background: '#fff', border: '1px solid #e0e0e0', borderRadius: '4px', padding: '20px', marginBottom: '20px' }}>
+              <label className="field-label">Roles and Responsibilities *</label>
+              <textarea 
+                className="field-input" 
+                value={formData.responsibilities}
+                onChange={e => handleInputChange('responsibilities', e.target.value)}
+                placeholder="List the key tasks the student was responsible for..."
+                style={{ width: '100%', height: '120px', padding: '12px', marginBottom: 20 }}
+              />
 
-          <div className="section-divider">Work Performance</div>
-          <div className="policy-note info" style={{ marginBottom: 12 }}>
-            Describe the student's performance, attendance, and contributions.
+              <label className="field-label">Work Performance Summary *</label>
+              <textarea 
+                className="field-input" 
+                value={formData.performance}
+                onChange={e => handleInputChange('performance', e.target.value)}
+                placeholder="Describe the student's performance, attendance, and contributions..."
+                style={{ width: '100%', height: '120px', padding: '12px' }}
+              />
           </div>
-          <textarea 
-            className="field-input" 
-            placeholder="e.g. Excellent attendance, proactive in learning new software..."
-            style={{ width: '100%', height: '120px', padding: '12px' }}
-          />
         </div>
       )}
 
       {currentStep === 3 && (
         <div className="fade-in">
-          <div className="section-divider">Employer Declaration</div>
-          <div className="decl-panel" style={{ background: '#f8fafc' }}>
-            The employer confirms that the information provided is accurate and complete. Award is contingent on regular attendance and satisfactory performance.
-          </div>
-          
-          <table className="form-grid">
-            <tbody>
-              <tr>
-                <td width="70%">
+          <div style={{ background: '#fff', border: '1px solid #e0e0e0', borderRadius: '4px', padding: '20px' }}>
+              <div className="decl-panel" style={{ background: '#f8fafc', marginBottom: '20px' }}>
+                The employer confirms that the information provided is accurate and complete. Award is contingent on regular attendance and satisfactory performance.
+              </div>
+              
+              <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '16px' }}>
+                <div>
                   <label className="field-label">Supervisor Digital Signature *</label>
-                  <input className="field-input" type="text" placeholder="Type supervisor's full legal name" />
-                </td>
-                <td width="30%">
-                  <label className="field-label">Date *</label>
-                  <input className="field-input" type="text" defaultValue="2026/03/28" />
-                </td>
-              </tr>
-            </tbody>
-          </table>
-
-          <div style={{ marginTop: 24, padding: 16, border: '1px dashed #e2e8f0', borderRadius: '8px', textAlign: 'center' }}>
-            <div style={{ fontSize: 13, color: '#64748b' }}>If you are the student, please share this form with your supervisor.</div>
-            <button className="btn-ghost" style={{ marginTop: 12, color: '#1a4aaa' }}>Copy Shareable Link \u29c9</button>
+                  <input className="field-input" value={formData.signature} onChange={e => handleInputChange('signature', e.target.value)} placeholder="Type supervisor's full legal name" />
+                </div>
+                <div>
+                  <label className="field-label">Date</label>
+                  <input className="field-input" disabled value={new Date().toLocaleDateString()} />
+                </div>
+              </div>
           </div>
         </div>
       )}

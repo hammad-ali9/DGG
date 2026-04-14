@@ -1,23 +1,50 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
+import API from '../api/client';
 import '../styles/auth.css';
 
 const InternalSignIn: React.FC = () => {
-    const [role, setRole] = useState<'ssw' | 'director'>('ssw');
+    const [email, setEmail] = useState('');
+    const [password, setPassword] = useState('');
+    const [isLoading, setIsLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
     const [showPassword, setShowPassword] = useState(false);
     const navigate = useNavigate();
 
-    const handleLogin = () => {
-        // In a real app, this would verify credentials and set a token
-        // For this demo, we'll navigate to /staff and let the dashboard know the role
-        // We'll pass it via state or use the role switcher for now
-        navigate('/staff', { state: { role } });
+    const handleLogin = async () => {
+        if (!email || !password) {
+            setError('Please enter both email and password.');
+            return;
+        }
+
+        setIsLoading(true);
+        setError(null);
+
+        try {
+            const response = await API.login({ email, password });
+            localStorage.setItem('dgg_token', response.access);
+            localStorage.setItem('dgg_refresh', response.refresh);
+            
+            // Verify role is staff/admin/director
+            const user = await API.getMe();
+            localStorage.setItem('dgg_role', user.role);
+
+            if (user.role === 'admin' || user.role === 'director') {
+                navigate('/staff');
+            } else {
+                setError('Access denied. This portal is for authorized personnel only.');
+                localStorage.removeItem('dgg_token');
+            }
+        } catch (err: any) {
+            setError(err.message || 'Authentication failed. Please check your credentials.');
+        } finally {
+            setIsLoading(false);
+        }
     };
 
     return (
     <div className="auth-root">
       <div className="page-layout">
-        {/* Left Branding Panel */}
         <div className="left-panel">
           <div>
             <div className="brand-name">Deline Got'ı̨nę Government</div>
@@ -36,47 +63,26 @@ const InternalSignIn: React.FC = () => {
           </div>
         </div>
 
-        {/* Right Form Card */}
         <div className="right-panel">
           <div className="form-title">Internal Access</div>
           <div className="form-sub">Authorized Personnel Only</div>
 
-          {/* Role Selector */}
-          <div className="field-group" style={{ marginBottom: '32px' }}>
-            <label className="field-label" style={{ color: '#64748b' }}>Access Level</label>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginTop: '8px' }}>
-              <button 
-                className={`btn-auth-secondary ${role === 'ssw' ? 'active' : ''}`}
-                onClick={() => setRole('ssw')}
-                style={{ 
-                  margin: 0,
-                  background: role === 'ssw' ? 'var(--admin-accent, #e5a662)' : '#fff',
-                  color: role === 'ssw' ? '#111' : '#64748b',
-                  borderColor: role === 'ssw' ? 'var(--admin-accent, #e5a662)' : '#e2e8f0',
-                  fontWeight: '700'
-                }}
-              >
-                SSW / Staff
-              </button>
-              <button 
-                className={`btn-auth-secondary ${role === 'director' ? 'active' : ''}`}
-                onClick={() => setRole('director')}
-                style={{ 
-                  margin: 0,
-                  background: role === 'director' ? 'var(--admin-accent, #e5a662)' : '#fff',
-                  color: role === 'director' ? '#111' : '#64748b',
-                  borderColor: role === 'director' ? 'var(--admin-accent, #e5a662)' : '#e2e8f0',
-                  fontWeight: '700'
-                }}
-              >
-                Director
-              </button>
+          {error && (
+            <div style={{ background: '#fff2f2', border: '1px solid #ffcccc', color: '#cc0000', padding: '12px', borderRadius: '8px', marginBottom: '24px', fontSize: '12px', fontWeight: '600' }}>
+              {error}
             </div>
-          </div>
+          )}
 
           <div className="field-group">
             <label className="field-label" style={{ color: '#64748b' }}>Government ID / Email</label>
-            <input className="field-input" type="text" placeholder="e.g. j.villeneuve@gov.deline.ca" style={{ background: '#fff' }} />
+            <input 
+                className="field-input" 
+                type="text" 
+                placeholder="e.g. admin@deline.ca" 
+                style={{ background: '#fff' }} 
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+            />
           </div>
 
           <div className="field-group">
@@ -87,6 +93,8 @@ const InternalSignIn: React.FC = () => {
                 type={showPassword ? "text" : "password"} 
                 placeholder="••••••••••••"
                 style={{ background: '#fff' }}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
               />
               <button className="pw-toggle" type="button" onClick={() => setShowPassword(!showPassword)} style={{ color: '#64748b' }}>
                 {showPassword ? 'Hide' : 'Show'}
@@ -104,10 +112,11 @@ const InternalSignIn: React.FC = () => {
 
           <button 
             className="btn-auth-primary" 
-            style={{ background: 'var(--admin-accent, #e5a662)', color: '#111' }}
+            style={{ background: 'var(--admin-accent, #e5a662)', color: '#111', opacity: isLoading ? 0.7 : 1 }}
             onClick={handleLogin}
+            disabled={isLoading}
           >
-            SECURE ACCESS &nbsp;→
+            {isLoading ? 'VERIFYING...' : 'SECURE ACCESS \u00a0→'}
           </button>
 
           <Link to="/signin" style={{ display: 'block', textAlign: 'center', marginTop: '24px', fontSize: '12px', color: '#64748b', textDecoration: 'none', fontWeight: '600' }}>

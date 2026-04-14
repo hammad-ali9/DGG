@@ -1,15 +1,48 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import API from '../../api/client';
 import FormWizard from '../../components/Forms/FormWizard';
 import '../../styles/forms.css';
 
 interface FormHProps {
+  profile?: any;
   onBack: () => void;
   onComplete: () => void;
 }
 
-const FormH: React.FC<FormHProps> = ({ onBack, onComplete }) => {
+const FormH: React.FC<FormHProps> = ({ profile, onBack, onComplete }) => {
   const [currentStep, setCurrentStep] = useState(1);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [isSubmitted, setIsSubmitted] = useState(false);
+
+  // BUG 1: Connectivity & State
+  const [formData, setFormData] = useState({
+    studentName: '',
+    studentId: '',
+    institution: '',
+    semester: 'Fall',
+    year: '',
+    appealReason: '',
+    policyReference: '',
+    signature: ''
+  });
+
+  const [selectedEvidence, setSelectedEvidence] = useState<File[]>([]);
+
+  // Fix: Only auto-fill if the fields are currently empty to avoid overwriting user input during polling
+  useEffect(() => {
+    if (profile) {
+      setFormData(prev => ({
+        ...prev,
+        studentName: prev.studentName || `${profile.first_name || ''} ${profile.last_name || ''}`.trim(),
+        studentId: prev.studentId || profile.beneficiary_number || ''
+      }));
+    }
+  }, [profile]);
+
+  const handleInputChange = (field: string, value: string) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
+  };
 
   const steps = [
     { id: 1, label: 'Appeal Context' },
@@ -17,7 +50,26 @@ const FormH: React.FC<FormHProps> = ({ onBack, onComplete }) => {
     { id: 3, label: 'Support & Submission' }
   ];
 
+  // BUG 5: Validation
+  const canGoNext = () => {
+    if (currentStep === 1) {
+      return formData.studentName && formData.institution && formData.semester && formData.year;
+    }
+    if (currentStep === 2) {
+      return formData.appealReason.length > 20;
+    }
+    return true;
+  };
+
   const handleNext = () => {
+    if (!canGoNext()) {
+      setError(currentStep === 1 
+        ? 'Please fill in all required student and academic information.' 
+        : 'Please provide a detailed explanation for your appeal.'
+      );
+      return;
+    }
+    setError(null);
     if (currentStep < 3) setCurrentStep(currentStep + 1);
   };
 
@@ -26,8 +78,49 @@ const FormH: React.FC<FormHProps> = ({ onBack, onComplete }) => {
     else onBack();
   };
 
-  const handleSubmit = () => {
-    setIsSubmitted(true);
+  // BUG 4: Connected Submission Flow
+  const handleSubmit = async () => {
+    if (!formData.signature) {
+      setError('Electronic signature is required.');
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+    try {
+      const submissionData = new FormData();
+      
+      const answers = [
+        { field_label: 'Student Name', answer_text: formData.studentName },
+        { field_label: 'Student ID', answer_text: formData.studentId },
+        { field_label: 'Institution', answer_text: formData.institution },
+        { field_label: 'Semester', answer_text: formData.semester },
+        { field_label: 'Academic Year', answer_text: formData.year },
+        { field_label: 'Reason for Appeal', answer_text: formData.appealReason },
+        { field_label: 'Policy Reference', answer_text: formData.policyReference },
+        { field_label: 'Electronic Signature', answer_text: formData.signature }
+      ];
+
+      answers.forEach((ans, i) => {
+        submissionData.append(`answers[${i}]field_label`, ans.field_label);
+        submissionData.append(`answers[${i}]answer_text`, ans.answer_text);
+      });
+
+      selectedEvidence.forEach((file, index) => {
+        submissionData.append(`answers[${answers.length + index}]field_label`, `Evidence Attachment ${index + 1}`);
+        submissionData.append(`answers[${answers.length + index}]answer_file`, file);
+      });
+
+      await API.submitApplication({
+        form_type: 'FormH',
+        form_data: submissionData
+      });
+      setIsSubmitted(true);
+    } catch (err: any) {
+      setError(err.message || 'Failed to file appeal. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   if (isSubmitted) {
@@ -38,9 +131,6 @@ const FormH: React.FC<FormHProps> = ({ onBack, onComplete }) => {
             <Icons.Check />
           </div>
           <h2 style={{ fontSize: '24px', fontWeight: '700', marginBottom: '12px' }}>Appeal Filed</h2>
-          <div style={{ background: '#fff8f0', border: '1px solid #ffcc80', padding: '8px 16px', borderRadius: '4px', display: 'inline-block', fontSize: '11px', fontWeight: '700', color: '#7a4a00', marginBottom: '24px' }}>
-            REF: APL-2026-F55
-          </div>
           <p style={{ fontSize: '14px', color: '#4a5568', lineHeight: '1.6', maxWidth: '400px', margin: '0 auto 32px' }}>
             Your appeal has been forwarded to the Education Director and Appeal Committee. Decisions are typically rendered within 30 days of receipt.
           </p>
@@ -67,109 +157,100 @@ const FormH: React.FC<FormHProps> = ({ onBack, onComplete }) => {
       onBack={handleBack}
       onNext={handleNext}
       isLastStep={currentStep === 3}
+      nextDisabled={isLoading}
       onSubmit={handleSubmit}
     >
+      {error && (
+        <div className="alert-box error fade-in" style={{ background: '#fff2f2', border: '1px solid #ffcccc', color: '#cc0000', padding: '12px 16px', borderRadius: '6px', marginBottom: '20px', fontSize: '13px' }}>
+          <strong>Error:</strong> {error}
+        </div>
+      )}
+
       {currentStep === 1 && (
         <div className="fade-in">
-          <div className="policy-note warn" style={{ marginBottom: 24 }}>
-            <strong>Prerequisite:</strong> A prior denied or suspended decision must be on record to file an appeal.
-          </div>
-
-          <div className="section-divider">Student Information</div>
-          <table className="form-grid">
-            <tbody>
-              <tr>
-                <td width="60%">
+          <div style={{ background: '#fff', border: '1px solid #e0e0e0', borderRadius: '4px', padding: '20px', marginBottom: '20px' }}>
+            <div className="section-divider">Student & Academic Context</div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
+                <div>
                   <label className="field-label">Student Name *</label>
-                  <input className="field-input" type="text" placeholder="Marie Beaulieu" defaultValue="Marie Beaulieu" />
-                </td>
-                <td width="40%">
+                  <input className="field-input" value={formData.studentName} onChange={e => handleInputChange('studentName', e.target.value)} />
+                </div>
+                <div>
                   <label className="field-label">Student ID *</label>
-                  <input className="field-input" type="text" placeholder="DGG-00412" defaultValue="DGG-00412" />
-                </td>
-              </tr>
-              <tr>
-                <td colSpan={2}>
-                  <label className="field-label">Educational Institution *</label>
-                  <input className="field-input" type="text" placeholder="e.g. University of Calgary" />
-                </td>
-              </tr>
-            </tbody>
-          </table>
-
-          <div className="section-divider">Affected Term</div>
-          <table className="form-grid">
-            <tbody>
-              <tr>
-                <td width="50%">
+                  <input className="field-input" value={formData.studentId} onChange={e => handleInputChange('studentId', e.target.value)} />
+                </div>
+            </div>
+            <div style={{ marginBottom: '12px' }}>
+                <label className="field-label">Educational Institution *</label>
+                <input className="field-input" value={formData.institution} onChange={e => handleInputChange('institution', e.target.value)} />
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div>
                   <label className="field-label">Semester *</label>
-                  <select className="field-input" style={{ width: '100%', height: '36px' }}>
+                  <select className="field-input" value={formData.semester} onChange={e => handleInputChange('semester', e.target.value)}>
                     <option>Fall</option>
                     <option>Winter</option>
                     <option>Spring/Summer</option>
                   </select>
-                </td>
-                <td width="50%">
+                </div>
+                <div>
                   <label className="field-label">Academic Year *</label>
-                  <input className="field-input" type="text" placeholder="e.g. 2025-2026" />
-                </td>
-              </tr>
-            </tbody>
-          </table>
+                  <input className="field-input" value={formData.year} onChange={e => handleInputChange('year', e.target.value)} placeholder="e.g. 2025-2026" />
+                </div>
+            </div>
+          </div>
         </div>
       )}
 
       {currentStep === 2 && (
         <div className="fade-in">
-          <div className="section-divider">Reason for Appeal</div>
-          <div className="policy-note info" style={{ marginBottom: 12 }}>
-            Clearly describe: (1) what decision is being appealed, (2) when it was made, (3) why you believe it was incorrect, and (4) your requested outcome.
-          </div>
-          <textarea 
-            className="field-input" 
-            placeholder="Type your explanation here..."
-            style={{ width: '100%', height: '200px', padding: '12px' }}
-          />
+          <div style={{ background: '#fff', border: '1px solid #e0e0e0', borderRadius: '4px', padding: '20px', marginBottom: '20px' }}>
+            <label className="field-label">Detailed Reason for Appeal *</label>
+            <div style={{ fontSize: '11px', color: '#666', marginBottom: '10px' }}>
+                Explain why you believe the original decision was incorrect and what outcome you are requesting.
+            </div>
+            <textarea 
+              className="field-input" 
+              value={formData.appealReason}
+              onChange={e => handleInputChange('appealReason', e.target.value)}
+              placeholder="Provide a thorough explanation..."
+              style={{ width: '100%', height: '160px', padding: '12px', marginBottom: '20px' }}
+            />
 
-          <div className="section-divider" style={{ marginTop: 24 }}>Policy References (Optional)</div>
-          <div style={{ fontSize: 11, color: '#64748b', marginBottom: 8 }}>
-            Identify specific sections of the DGG Education Policy supporting your appeal.
+            <label className="field-label">Policy Reference (Optional)</label>
+            <input 
+              className="field-input" 
+              value={formData.policyReference}
+              onChange={e => handleInputChange('policyReference', e.target.value)}
+              placeholder="e.g. Section 4.2 - Eligibility requirements"
+            />
           </div>
-          <input className="field-input" type="text" placeholder="e.g. Section 4.2 - Eligibility Requirements" />
         </div>
       )}
 
       {currentStep === 3 && (
         <div className="fade-in">
-          <div className="section-divider">Supporting Evidence</div>
-          <div className="doc-item">
-            <div className="doc-name">Upload Documents (Optional)</div>
-            <div className="doc-meta">Attach medical notes, letters, transcripts, or any other supporting materials.</div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 12 }}>
-              <button className="btn-ghost" style={{ fontSize: 10 }}>Upload Files</button>
-              <span style={{ fontSize: 10, color: '#94a3b8' }}>No files chosen</span>
-            </div>
+          <div style={{ background: '#fff', border: '1px solid #e0e0e0', borderRadius: '4px', padding: '20px', marginBottom: '20px' }}>
+            <label className="field-label">Supporting Evidence (Transcripts, Letters, etc.)</label>
+            <input type="file" multiple onChange={e => setSelectedEvidence(Array.from(e.target.files || []))} />
           </div>
 
-          <div className="section-divider" style={{ marginTop: 32 }}>Student Declaration</div>
-          <div className="decl-panel">
-            I confirm that the information provided is accurate and complete. I understand that appeal decisions are discretionary and subject to the DGG Education Policy and committee review.
-          </div>
-          
-          <table className="form-grid">
-            <tbody>
-              <tr>
-                <td width="70%">
+          <div style={{ background: '#fff', border: '1px solid #e0e0e0', borderRadius: '4px', padding: '20px' }}>
+            <div className="decl-panel" style={{ marginBottom: '20px' }}>
+              I confirm that the information provided is accurate and complete. I understand that appeal decisions are discretionary and subject to the DGG Education Policy.
+            </div>
+            
+            <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '16px' }}>
+                <div>
                   <label className="field-label">Electronic Signature *</label>
-                  <input className="field-input" type="text" placeholder="Type your full legal name" />
-                </td>
-                <td width="30%">
-                  <label className="field-label">Date *</label>
-                  <input className="field-input" type="text" defaultValue="2026/03/28" />
-                </td>
-              </tr>
-            </tbody>
-          </table>
+                  <input className="field-input" value={formData.signature} onChange={e => handleInputChange('signature', e.target.value)} placeholder="Type name to sign" />
+                </div>
+                <div>
+                  <label className="field-label">Date</label>
+                  <input className="field-input" disabled value={new Date().toLocaleDateString()} />
+                </div>
+            </div>
+          </div>
         </div>
       )}
     </FormWizard>

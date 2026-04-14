@@ -1,14 +1,18 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import API from '../../api/client';
 import FormWizard from '../../components/Forms/FormWizard';
 import '../../styles/forms.css';
 
 interface FormDProps {
+  profile?: any;
   onBack: () => void;
   onComplete: () => void;
 }
 
-const FormD: React.FC<FormDProps> = ({ onBack, onComplete }) => {
+const FormD: React.FC<FormDProps> = ({ profile, onBack, onComplete }) => {
   const [currentStep, setCurrentStep] = useState(1);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [isSubmitted, setIsSubmitted] = useState(false);
 
   // Selection state
@@ -33,8 +37,30 @@ const FormD: React.FC<FormDProps> = ({ onBack, onComplete }) => {
     address: '',
     phone: '',
     email: '',
-    sfaStatus: ''
+    sfaStatus: '',
+    declarationConfirmed: false
   });
+
+  const [selectedFiles, setSelectedFiles] = useState<Record<string, File | null>>({
+    enrollmentDoc: null,
+    sfaLetter: null
+  });
+
+  // Fix: Only auto-fill if the fields are currently empty to avoid overwriting user input during polling
+  useEffect(() => {
+    if (profile) {
+      setDetails(prev => ({
+        ...prev,
+        address: prev.address || profile.address || '',
+        phone: prev.phone || profile.phone || '',
+        email: prev.email || profile.email || ''
+      }));
+    }
+  }, [profile]);
+
+  const handleToggleCategory = (cat: keyof typeof categories) => {
+    setCategories(prev => ({ ...prev, [cat]: !prev[cat] }));
+  };
 
   const steps = [
     { id: 1, label: 'Select Category' },
@@ -42,24 +68,23 @@ const FormD: React.FC<FormDProps> = ({ onBack, onComplete }) => {
     { id: 3, label: 'Review & Impact' }
   ];
 
-  const handleToggleCategory = (cat: keyof typeof categories) => {
-    setCategories(prev => ({ ...prev, [cat]: !prev[cat] }));
+  // BUG 5: Validation
+  const canGoNext = () => {
+    if (currentStep === 1) {
+      return Object.values(categories).some(v => v);
+    }
+    if (currentStep === 2) {
+      return details.effDate && details.reason;
+    }
+    return true;
   };
 
   const handleNext = () => {
-    if (currentStep === 1) {
-      const anySelected = Object.values(categories).some(v => v);
-      if (!anySelected) {
-        alert("Please select at least one change category.");
-        return;
-      }
+    if (!canGoNext()) {
+      setError(currentStep === 1 ? 'Please select at least one change category.' : 'Please provide an effective date and a description of the change.');
+      return;
     }
-    if (currentStep === 2) {
-      if (!details.effDate) {
-        alert("Please provide an effective date.");
-        return;
-      }
-    }
+    setError(null);
     if (currentStep < 3) setCurrentStep(currentStep + 1);
   };
 
@@ -68,8 +93,55 @@ const FormD: React.FC<FormDProps> = ({ onBack, onComplete }) => {
     else onBack();
   };
 
-  const handleSubmit = () => {
-    setIsSubmitted(true);
+  // BUG 4: Connected Submission Flow
+  const handleSubmit = async () => {
+    if (!details.declarationConfirmed) {
+      setError('Please confirm the declaration before submitting.');
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+    try {
+      const submissionData = new FormData();
+      
+      const answers = [
+        { field_label: 'Change Categories', answer_text: Object.entries(categories).filter(([_, v]) => v).map(([k]) => k).join(', ') },
+        { field_label: 'Effective Date', answer_text: details.effDate },
+        { field_label: 'Reason for Change', answer_text: details.reason },
+        { field_label: 'New Status', answer_text: details.status },
+        { field_label: 'New Institution', answer_text: details.institution },
+        { field_label: 'New Program', answer_text: details.program },
+        { field_label: 'Dependent Change', answer_text: `Count: ${details.dependentCount}, Ages: ${details.dependentAges}` },
+        { field_label: 'Contact Info Change', answer_text: `Address: ${details.address}, Phone: ${details.phone}, Email: ${details.email}` },
+        { field_label: 'SFA Status', answer_text: details.sfaStatus },
+        { field_label: 'Impact Summary', answer_text: getImpactText() }
+      ];
+
+      answers.forEach((ans, i) => {
+        submissionData.append(`answers[${i}]field_label`, ans.field_label);
+        submissionData.append(`answers[${i}]answer_text`, ans.answer_text);
+      });
+
+      if (selectedFiles.enrollmentDoc) {
+          submissionData.append('answers[10]field_label', 'Enrollment Document');
+          submissionData.append('answers[10]answer_file', selectedFiles.enrollmentDoc);
+      }
+      if (selectedFiles.sfaLetter) {
+          submissionData.append('answers[11]field_label', 'SFA Letter');
+          submissionData.append('answers[11]answer_file', selectedFiles.sfaLetter);
+      }
+
+      await API.submitApplication({
+        form_type: 'FormD',
+        form_data: submissionData
+      });
+      setIsSubmitted(true);
+    } catch (err: any) {
+      setError(err.message || 'Failed to submit change report. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const getImpactText = () => {
@@ -94,9 +166,6 @@ const FormD: React.FC<FormDProps> = ({ onBack, onComplete }) => {
             <Icons.Check />
           </div>
           <h2 style={{ fontSize: '24px', fontWeight: '700', marginBottom: '12px' }}>Change Reported</h2>
-          <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', padding: '8px 16px', borderRadius: '4px', display: 'inline-block', fontSize: '11px', fontWeight: '700', color: '#64748b', marginBottom: '24px' }}>
-            REF: CHG-2026-T402
-          </div>
           <p style={{ fontSize: '14px', color: '#4a5568', lineHeight: '1.6', maxWidth: '400px', margin: '0 auto 32px' }}>
             Your change of information has been submitted. A counselor will review the impact on your funding and contact you if further action is needed.
           </p>
@@ -123,19 +192,14 @@ const FormD: React.FC<FormDProps> = ({ onBack, onComplete }) => {
       onBack={handleBack}
       onNext={handleNext}
       isLastStep={currentStep === 3}
+      nextDisabled={isLoading}
       onSubmit={handleSubmit}
     >
-      {/* <div style={{ background: '#ffffff', borderBottom: '1px solid #e8e8e8', padding: '12px 20px 11px', margin: '-32px -40px 24px -40px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-          <div>
-            <div style={{ fontSize: '13px', fontWeight: '700', color: '#111', textTransform: 'uppercase', letterSpacing: '0.02em' }}>Form D &mdash; Change of Information</div>
-            <div style={{ fontSize: '10px', color: '#888', marginTop: '3px', lineHeight: '1.5' }}>Student Financial Support Program &middot; Submit immediately whenever circumstances change</div>
-          </div>
-          <div style={{ textAlign: 'right', fontSize: '9px', color: '#888', lineHeight: '1.7', whiteSpace: 'nowrap' }}>
-            (867) 589-3515 ext. 1110<br />education.support@gov.deline.ca
-          </div>
+      {error && (
+        <div className="alert-box error fade-in" style={{ background: '#fff2f2', border: '1px solid #ffcccc', color: '#cc0000', padding: '12px 16px', borderRadius: '6px', marginBottom: '20px', fontSize: '13px' }}>
+          <strong>Error:</strong> {error}
         </div>
-      </div> */}
+      )}
 
       <div style={{ background: '#fff8f0', border: '1px solid #ffcc80', borderLeft: '3px solid #e65100', borderRadius: '3px', padding: '10px 12px', fontSize: '10px', color: '#7a4a00', lineHeight: '1.6', marginBottom: '12px', marginTop: '20px' }}>
         <strong>Submit immediately whenever any information changes.</strong> Failing to report enrollment changes (e.g. dropping to part-time) can result in overpayments you will be required to repay.
@@ -191,12 +255,9 @@ const FormD: React.FC<FormDProps> = ({ onBack, onComplete }) => {
                     <input type="date" value={details.effDate} onChange={e => setDetails({ ...details, effDate: e.target.value })} style={{ width: '100%', padding: '9px', border: '1px solid #ccc', borderRadius: '4px', fontSize: '12px' }} />
                   </div>
                 </div>
-                <div style={{ background: '#f0f7ff', border: '1px solid #cce3ff', borderRadius: '4px', padding: '10px', fontSize: '10.5px', color: '#0b4c9e' }}>
-                  <strong>Tip:</strong> If you dropped courses, please upload your updated course registration or request an updated <strong>Form B</strong> from your Registrar.
-                </div>
                 <div style={{ marginTop: '12px' }}>
                   <div style={{ fontSize: '9px', fontWeight: '600', color: '#888', textTransform: 'uppercase', marginBottom: '4px' }}>Supporting Document (Optional)</div>
-                  <input type="file" style={{ fontSize: '11px', color: '#555' }} />
+                  <input type="file" onChange={e => setSelectedFiles({ ...selectedFiles, enrollmentDoc: e.target.files?.[0] || null })} style={{ fontSize: '11px', color: '#555' }} />
                 </div>
               </div>
             </div>
@@ -284,7 +345,7 @@ const FormD: React.FC<FormDProps> = ({ onBack, onComplete }) => {
                   </div>
                   <div>
                     <div style={{ fontSize: '9px', fontWeight: '600', color: '#888', textTransform: 'uppercase', marginBottom: '4px' }}>New Letter (Optional)</div>
-                    <input type="file" style={{ fontSize: '11px', color: '#555' }} />
+                    <input type="file" onChange={e => setSelectedFiles({ ...selectedFiles, sfaLetter: e.target.files?.[0] || null })} style={{ fontSize: '11px', color: '#555' }} />
                   </div>
                 </div>
               </div>
@@ -321,18 +382,16 @@ const FormD: React.FC<FormDProps> = ({ onBack, onComplete }) => {
 
             <div style={{ marginTop: '24px', borderTop: '1px solid #eee', paddingTop: '20px' }}>
               <label style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', cursor: 'pointer' }}>
-                <input type="checkbox" style={{ width: '20px', height: '20px', flexShrink: 0, marginTop: '2px' }} />
+                <input 
+                    type="checkbox" 
+                    checked={details.declarationConfirmed}
+                    onChange={e => setDetails({ ...details, declarationConfirmed: e.target.checked })}
+                    style={{ width: '20px', height: '20px', flexShrink: 0, marginTop: '2px' }} 
+                />
                 <span style={{ fontSize: '12px', color: '#111', lineHeight: '1.5' }}>
                   <strong>Declaration:</strong> I confirm that the information provided is correct and complete. I understand that reporting this change may trigger a <strong>recalculation of my funding</strong> from the effective date provided, and may result in an <strong>overpayment</strong> that I will be required to repay.
                 </span>
               </label>
-            </div>
-          </div>
-
-          <div style={{ marginTop: '40px', background: '#f5f5f5', borderTop: '1px solid #e0e0e0', padding: '13px 20px', margin: '24px -40px -32px -40px' }}>
-            <div style={{ fontSize: '9.5px', color: '#888', lineHeight: '1.6' }}>
-              Department of Education, D&#233;l&#x12C;&#x328;&#x29F;&#x119; Got&#x2019;&#x12C;&#x328;&#x29F;&#x119; Government<br />
-              P.O. Box 156, D&#233;l&#x12C;&#x328;&#x29F;&#x119;, NT X0E 0G0 &nbsp;&middot;&nbsp; education.support@gov.deline.ca &nbsp;&middot;&nbsp; (867) 589-3515 ext. 1110
             </div>
           </div>
         </div>

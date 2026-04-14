@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import API from '../api/client';
 import '../styles/dashboard.css';
 import FormA from './Forms/FormA';
 import FormC from './Forms/FormC';
@@ -69,11 +70,151 @@ const Icons = {
 
 const Dashboard: React.FC = () => {
   const [currentView, setCurrentView] = useState<DashboardView>('dashboard');
-  const [isNotificationsRead, setIsNotificationsRead] = useState(false);
+  // const [isNotificationsRead] = useState(false); // Removed legacy
+  const [notifications, setNotifications] = useState<any[]>([]);
   const [showToast, setShowToast] = useState<string | null>(null);
   const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(null);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const navigate = useNavigate();
+  const [applications, setApplications] = useState<any[]>([]);
+  const [profile, setProfile] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [documents, setDocuments] = useState<any[]>([]);
+  const [isUploading, setIsUploading] = useState(false);
+
+  const fetchDashboardData = async () => {
+    try {
+      const resp = await API.getSubmissions();
+      setApplications(Array.isArray(resp) ? resp : []);
+      
+      const userResp = await API.getMe();
+      setProfile(userResp);
+      
+      const notifsResp = await API.getNotifications();
+      setNotifications(Array.isArray(notifsResp) ? notifsResp : []);
+    } catch (err: any) {
+      console.error('Failed to fetch dashboard data:', err);
+      if (err.status === 401) {
+        handleLogout();
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // ── POLLING FOR REAL-TIME UPDATES ──
+  useEffect(() => {
+    fetchDashboardData();
+    const interval = setInterval(fetchDashboardData, 5000); // 5-second polling
+    return () => clearInterval(interval);
+  }, []);
+
+  const fetchDocuments = async () => {
+    try {
+      const resp = await API.getUserDocuments();
+      setDocuments(Array.isArray(resp) ? resp : []);
+    } catch (err) {
+      console.error('Failed to fetch documents:', err);
+    }
+  };
+
+  useEffect(() => {
+    if (currentView === 'documents') {
+      fetchDocuments();
+    }
+  }, [currentView]);
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('name', file.name);
+    // Optional: add category if desired
+    formData.append('category', 'User Upload');
+
+    setIsUploading(true);
+    try {
+      await API.uploadUserDocument(formData);
+      setShowToast('Document uploaded successfully');
+      fetchDocuments();
+    } catch (err: any) {
+      console.error('Upload failed:', err);
+      setShowToast('Upload failed: ' + (err.message || 'Unknown error'));
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const handleDeleteDocument = async (id: number) => {
+    if (!window.confirm('Are you sure you want to delete this document?')) return;
+    try {
+      await API.deleteUserDocument(id);
+      setShowToast('Document deleted');
+      fetchDocuments();
+    } catch (err) {
+      console.error('Delete failed:', err);
+      setShowToast('Failed to delete document');
+    }
+  };
+
+  const unreadCount = notifications.filter(n => !n.is_read).length;
+
+  const handleMarkAllRead = async () => {
+    try {
+      await API.markAllNotificationsRead();
+      setNotifications(notifications.map(n => ({ ...n, is_read: true })));
+    } catch (err) {
+      console.error('Failed to mark all as read:', err);
+    }
+  };
+
+  const handleMarkRead = async (id: number) => {
+    try {
+      await API.markNotificationRead(id);
+      setNotifications(notifications.map(n => n.id === id ? { ...n, is_read: true } : n));
+    } catch (err) {
+      console.error('Failed to mark as read:', err);
+    }
+  };
+
+  const getApprovedTotal = () => {
+    if (!Array.isArray(applications)) return 0;
+    return applications
+      .filter(app => app.status === 'accepted')
+      .reduce((sum, app) => {
+        const amt = parseFloat(app.amount || '0');
+        return sum + (isNaN(amt) ? 0 : amt);
+      }, 0);
+  };
+
+  const getActiveCount = () => {
+    return applications.filter(app => !['rejected', 'accepted'].includes(app.status)).length;
+  };
+
+  const getJourneyStage = () => {
+    if (applications.length === 0) {
+      return { title: '1. Getting Started', milestone: '📄 Start Form A to begin', pips: [true, false, false] };
+    }
+    
+    const latest = applications[0]; // Ordered by -submitted_at in backend
+    
+    if (latest.status === 'accepted') return { title: '4. Funding Active', milestone: '✅ Disbursement Phase', pips: [true, true, true] };
+    if (latest.status === 'rejected') return { title: 'Policy Notice', milestone: '❌ Application Rejected', pips: [true, true, true] };
+    if (latest.status === 'forwarded') return { title: '3. Final Approval', milestone: '⚖️ In Director Queue', pips: [true, true, true] };
+    if (latest.status === 'reviewed') return { title: '2. Review Process', milestone: '⏳ SSW Reviewed', pips: [true, true, false] };
+    
+    return { title: '1. Submitted', milestone: '📄 Awaiting Staff Review', pips: [true, false, false] };
+  };
+
+  const stage = getJourneyStage();
+
+  const handleLogout = () => {
+    localStorage.removeItem('dgg_token');
+    localStorage.removeItem('dgg_refresh');
+    navigate('/signin');
+  };
 
   useEffect(() => {
     if (showToast) {
@@ -82,10 +223,11 @@ const Dashboard: React.FC = () => {
     }
   }, [showToast]);
 
-  const submitMockForm = (label: string) => {
+  const handleFormComplete = (label: string) => {
     setShowToast(`✓ ${label} submitted · You will receive an email confirmation`);
     setCurrentView('applications');
     setIsMobileMenuOpen(false);
+    fetchDashboardData();
   };
 
   const handleNavClick = (view: DashboardView) => {
@@ -99,7 +241,7 @@ const Dashboard: React.FC = () => {
       onClick={() => handleNavClick(id)}
     >
       <span className="snav-icon">{icon}</span> {label}
-      {id === 'notifications' && !isNotificationsRead && <span className="notif-dot"></span>}
+      {id === 'notifications' && unreadCount > 0 && <span className="notif-dot"></span>}
     </div>
   );
 
@@ -114,9 +256,9 @@ const Dashboard: React.FC = () => {
       <div className={`sidebar ${isMobileMenuOpen ? 'open' : ''}`}>
 
         <div className="user-block" onClick={() => handleNavClick('profile')} style={{ cursor: 'pointer' }}>
-          <div className="user-avatar">MB</div>
-          <div className="user-name">Marie Beaulieu</div>
-          <div className="user-meta">ID: DGG-00412 · Student</div>
+          <div className="user-avatar">{profile?.full_name?.[0] || 'S'}</div>
+          <div className="user-name">{profile ? profile.full_name : 'Student User'}</div>
+          <div className="user-meta">{profile?.beneficiary_number ? `ID: ${profile.beneficiary_number}` : 'ID: Pending'} · Student</div>
         </div>
 
         <div className="sidebar-section-title">Main</div>
@@ -152,7 +294,7 @@ const Dashboard: React.FC = () => {
 
         <div className="sidebar-section-title">Other</div>
         {renderSidebarNav('help', 'Help & FAQ', <Icons.Help />)}
-        <div className="snav" onClick={() => navigate('/signin')}>
+        <div className="snav" onClick={handleLogout}>
           <span className="snav-icon"><Icons.LogOut /></span> Sign Out
         </div>
       </div>
@@ -171,14 +313,12 @@ const Dashboard: React.FC = () => {
             <span className="top-nav-link" onClick={() => setCurrentView('applications')}>My Applications</span>
             <span className="top-nav-link" onClick={() => setCurrentView('payments')}>Payments</span>
             <span className="top-nav-link" onClick={() => setCurrentView('notifications')}>
-              Notifications {!isNotificationsRead && <span className="nav-badge">3</span>}
+              Notifications {unreadCount > 0 && <span className="nav-badge">{unreadCount}</span>}
             </span>
           </div>
         </div>
 
-        {/* Main Content Area */}
         <div className="main-content">
-          {/* Deadline Ticker */}
           <div className="deadline-bar">
             <span className="dl-item"><span className="dl-label">Fall deadline</span><span className="dl-date">Aug 1</span></span>
             <span className="dl-sep">·</span>
@@ -187,7 +327,6 @@ const Dashboard: React.FC = () => {
             <span className="dl-item"><span className="dl-label">Travel claims</span><span className="dl-urgent">within 30 days of travel</span></span>
           </div>
 
-          {/* View Container */}
           <div className="view-container">
               
               {/* ── DASHBOARD VIEW ── */}
@@ -198,7 +337,6 @@ const Dashboard: React.FC = () => {
                     <button className="btn-primary" onClick={() => setCurrentView('formA')}>+ Start Your Application</button>
                   </div>
                   <div className="view-body">
-                    {/* Welcome Alert */}
                     <div className="welcome-alert">
                       <div className="welcome-alert-main">
                         <div className="welcome-icon-wrap"><Icons.Info /></div>
@@ -210,36 +348,45 @@ const Dashboard: React.FC = () => {
                       <button className="btn-primary welcome-btn" onClick={() => setCurrentView('formA')}>Get Started</button>
                     </div>
 
-                    {/* KPI Row */}
                     <div className="kpi-row">
-                      <div className="kpi-card"><div className="kpi-val">$0</div><div className="kpi-label">Approved This Semester</div></div>
-                      <div className="kpi-card"><div className="kpi-val">$0</div><div className="kpi-label">Paid To Date</div></div>
-                      <div className="kpi-card"><div className="kpi-val">$0</div><div className="kpi-label">Upcoming Payments</div></div>
-                      <div className="kpi-card"><div className="kpi-val">0</div><div className="kpi-label">Active Applications</div></div>
+                      <div className="kpi-card">
+                        <div className="kpi-val">${getApprovedTotal().toLocaleString()}</div>
+                        <div className="kpi-label">Authorized Total</div>
+                      </div>
+                      <div className="kpi-card">
+                        <div className="kpi-val">${getApprovedTotal().toLocaleString()}</div>
+                        <div className="kpi-label">Paid To Date</div>
+                      </div>
+                      <div className="kpi-card">
+                        <div className="kpi-val">$0</div>
+                        <div className="kpi-label">Remaining Balance</div>
+                      </div>
+                      <div className="kpi-card">
+                        <div className="kpi-val">{getActiveCount()}</div>
+                        <div className="kpi-label">Active Applications</div>
+                      </div>
                     </div>
 
-                    {/* ── Journey Progress Indicator ── */}
                     <div className="journey-progress-bar fade-in">
                       <div className="phase-info">
                         <div className="phase-status">
                           <div className="phase-label">Current Phase</div>
-                          <div className="phase-title">1. Getting Started</div>
+                          <div className="phase-title">{stage.title}</div>
                         </div>
                         <div className="progress-pips">
-                          <div className="pip completed"></div>
-                          <div className="progress-line partial"></div>
-                          <div className="pip"></div>
-                          <div className="progress-line"></div>
-                          <div className="pip"></div>
+                          <div className={`pip ${stage.pips[0] ? 'completed' : ''}`}></div>
+                          <div className={`progress-line ${stage.pips[1] ? 'partial' : ''}`}></div>
+                          <div className={`pip ${stage.pips[1] ? 'completed' : ''}`}></div>
+                          <div className={`progress-line ${stage.pips[2] ? 'partial' : ''}`}></div>
+                          <div className={`pip ${stage.pips[2] ? 'completed' : ''}`}></div>
                         </div>
                       </div>
                       <div className="next-milestone">
                         <div className="milestone-label">Next Milestone</div>
-                        <div className="milestone-val">⏳ Registrar Confirmation (Form B)</div>
+                        <div className="milestone-val">{stage.milestone}</div>
                       </div>
                     </div>
 
-                    {/* Journey Sections */}
                     <div className="journey-section">
                       <div className="journey-header">
                         <div className="journey-num">01</div>
@@ -276,7 +423,6 @@ const Dashboard: React.FC = () => {
                       </div>
                     </div>
 
-                    {/* Paper Forms Section */}
                     <div className="paper-forms-alert fade-in">
                       <div className="paper-icon">🖨️</div>
                       <div className="paper-text">
@@ -307,12 +453,55 @@ const Dashboard: React.FC = () => {
                   <div className="view-body">
                     <div className="sec-card">
                       <div className="sec-head"><span className="sec-title">Active & Recent Submissions</span></div>
-                      <div className="empty-state">
-                        <Icons.Files />
-                        <div className="empty-title">No Submissions Yet</div>
-                        <div className="empty-desc">Once you submit a form, you can track its progress and approval status here.</div>
-                        <button className="btn-primary" onClick={() => setCurrentView('dashboard')}>Browse Forms</button>
-                      </div>
+                      {isLoading ? (
+                        <div style={{ padding: '40px', textAlign: 'center', color: '#64748b' }}>Loading applications...</div>
+                      ) : applications.length > 0 ? (
+                        <div className="table-wrap">
+                          <table className="data-table">
+                            <thead>
+                              <tr>
+                                <th>Date</th>
+                                <th>Ref #</th>
+                                <th>Form Type</th>
+                                <th>Status</th>
+                                <th>Decision</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                               {applications.map((app) => (
+                                <tr key={app.id}>
+                                  <td style={{ fontSize: '11px' }}>{new Date(app.submitted_at).toLocaleDateString()}</td>
+                                  <td style={{ fontWeight: '700' }}>#{app.id.toString().padStart(6, '0')}</td>
+                                  <td style={{ fontWeight: '600' }}>{app.form_title}</td>
+                                  <td>
+                                    <span style={{ 
+                                      padding: '4px 10px', 
+                                      borderRadius: '4px', 
+                                      fontSize: '9px', 
+                                      fontWeight: '800',
+                                      background: app.status === 'accepted' ? '#f0fdf4' : app.status === 'rejected' ? '#fef2f2' : '#f0f9ff',
+                                      color: app.status === 'accepted' ? '#166534' : app.status === 'rejected' ? '#991b1b' : '#075985',
+                                      border: `1px solid ${app.status === 'accepted' ? '#bbf7d0' : app.status === 'rejected' ? '#fecaca' : '#bae6fd'}`
+                                    }}>
+                                      {app.status.toUpperCase()}
+                                    </span>
+                                  </td>
+                                  <td style={{ fontSize: '10px', color: '#64748b' }}>
+                                    {app.status === 'pending' ? 'Under Review' : app.status === 'accepted' ? 'Funds Authorized' : app.status === 'reviewed' ? 'SSW Reviewed' : 'Policy Non-Compliance'}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      ) : (
+                        <div className="empty-state">
+                          <Icons.Files />
+                          <div className="empty-title">No Submissions Yet</div>
+                          <div className="empty-desc">Once you submit a form, you can track its progress and approval status here.</div>
+                          <button className="btn-primary" onClick={() => setCurrentView('dashboard')}>Browse Forms</button>
+                        </div>
+                      )}
                     </div>
 
                     <div className="sec-card">
@@ -347,7 +536,7 @@ const Dashboard: React.FC = () => {
                   </div>
                   <div className="view-body">
                     <div className="kpi-row">
-                      <div className="kpi-card"><div className="kpi-val">$0</div><div className="kpi-label">Paid This Year</div></div>
+                      <div className="kpi-card"><div className="kpi-val">${getApprovedTotal().toLocaleString()}</div><div className="kpi-label">Paid This Year</div></div>
                       <div className="kpi-card"><div className="kpi-val">$0</div><div className="kpi-label">Upcoming Scheduled</div></div>
                     </div>
                     <div className="sec-card">
@@ -367,18 +556,112 @@ const Dashboard: React.FC = () => {
                 <div className="view-content fade-in">
                   <div className="view-header">
                     <div className="view-title">Notifications</div>
-                    <button className="btn-ghost" onClick={() => setIsNotificationsRead(true)}>Mark All Read</button>
+                    <button className="btn-ghost" onClick={handleMarkAllRead}>Mark All Read</button>
                   </div>
                   <div className="view-body">
-                    <div className={`notif-item ${!isNotificationsRead ? 'unread' : ''}`}>
-                      <div className="notif-icon"><Icons.Bell /></div>
-                      <div className="notif-body">
-                        <div className="notif-title">Welcome to your DGG Student Portal</div>
-                        <div className="notif-detail">Your account has been successfully created. Use this portal to apply for funding, track your status, and manage payments.</div>
-                        <div className="notif-time">Just now · Education Department</div>
-                        {!isNotificationsRead && <div className="notif-action" onClick={() => setCurrentView('dashboard')}>Get Started →</div>}
+                    {notifications.length > 0 ? (
+                      notifications.map((notif) => (
+                        <div 
+                          key={notif.id} 
+                          className={`notif-item ${!notif.is_read ? 'unread' : ''}`}
+                          onClick={() => handleMarkRead(notif.id)}
+                        >
+                          <div className="notif-icon"><Icons.Bell /></div>
+                          <div className="notif-body">
+                            <div className="notif-title">{notif.title}</div>
+                            <div className="notif-detail">{notif.message}</div>
+                            <div className="notif-time">
+                              {new Date(notif.created_at).toLocaleDateString()} {new Date(notif.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </div>
+                            {!notif.is_read && notif.link && (
+                              <div className="notif-action" onClick={() => setCurrentView('dashboard')}>View Details →</div>
+                            )}
+                          </div>
+                          {!notif.is_read && <div className="unread-pip"></div>}
+                        </div>
+                      ))
+                    ) : (
+                      <div className="empty-state">
+                        <Icons.Bell />
+                        <div className="empty-title">No Notifications</div>
+                        <div className="empty-desc">You're all caught up! New alerts will appear here.</div>
                       </div>
-                      {!isNotificationsRead && <div className="unread-pip"></div>}
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* ── DOCUMENTS VIEW ── */}
+              {currentView === 'documents' && (
+                <div className="view-content fade-in">
+                  <div className="view-header">
+                    <div className="view-title">My Documents</div>
+                    <div className="view-actions">
+                      <label className={`btn-primary ${isUploading ? 'loading' : ''}`} style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+                        {isUploading ? 'Uploading...' : '+ Upload Document'}
+                        <input type="file" onChange={handleFileUpload} style={{ display: 'none' }} disabled={isUploading} />
+                      </label>
+                    </div>
+                  </div>
+                  <div className="view-body">
+                    <div className="sec-card">
+                      <div className="sec-head">
+                        <span className="sec-title">Uploaded Files</span>
+                        <span className="sec-meta">{documents.length} document(s)</span>
+                      </div>
+                      <div className="table-wrap">
+                        {documents.length > 0 ? (
+                          <table className="data-table">
+                            <thead>
+                              <tr>
+                                <th>Name</th>
+                                <th>Category</th>
+                                <th>Uploaded</th>
+                                <th>Actions</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {documents.map((doc) => (
+                                <tr key={doc.id}>
+                                  <td style={{ fontWeight: '600' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                      <Icons.Documents />
+                                      {doc.name}
+                                    </div>
+                                  </td>
+                                  <td><span className="form-tag" style={{ fontSize: '10px' }}>{doc.category || 'General'}</span></td>
+                                  <td style={{ fontSize: '11px', color: '#64748b' }}>{new Date(doc.uploaded_at).toLocaleDateString()}</td>
+                                  <td>
+                                    <div style={{ display: 'flex', gap: '12px' }}>
+                                      <a href={doc.file} target="_blank" rel="noopener noreferrer" className="btn-ghost" style={{ fontSize: '11px', padding: '4px 8px' }}>View</a>
+                                      <button onClick={() => handleDeleteDocument(doc.id)} className="btn-ghost" style={{ fontSize: '11px', padding: '4px 8px', color: '#ef4444', borderColor: 'transparent' }}>Delete</button>
+                                    </div>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        ) : (
+                          <div className="empty-state" style={{ padding: '60px 0' }}>
+                            <Icons.Documents />
+                            <div className="empty-title">No Documents Found</div>
+                            <div className="empty-desc">Upload important documents like Transcripts, ID, or Void Checks here for easy access during applications.</div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="sec-card" style={{ background: '#f8fafc', border: '1px dashed #cbd5e1' }}>
+                      <div className="sec-head"><span className="sec-title">Document Requirements</span></div>
+                      <div style={{ padding: '0 20px 20px 20px', fontSize: '13px', color: '#475569' }}>
+                        <p>For faster application processing, please ensure your documents meet these criteria:</p>
+                        <ul style={{ marginTop: '10px', paddingLeft: '20px' }}>
+                          <li style={{ marginBottom: '6px' }}>Files must be in PDF, JPG, or PNG format</li>
+                          <li style={{ marginBottom: '6px' }}>Maximum file size per document is 10MB</li>
+                          <li style={{ marginBottom: '6px' }}>Ensure all text is clearly legible in scanned copies</li>
+                          <li style={{ marginBottom: '6px' }}>Include your name and date on unofficial transcripts</li>
+                        </ul>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -432,78 +715,87 @@ const Dashboard: React.FC = () => {
               {/* \u2500\u2500 FORM A VIEW \u2500\u2500 */}
               {currentView === 'formA' && (
                 <FormA 
+                  profile={profile}
                   onBack={() => setCurrentView('dashboard')} 
-                  onComplete={() => submitMockForm('Form A')} 
+                  onComplete={() => handleFormComplete('Form A')} 
                 />
               )}
 
               {/* \u2500\u2500 FORM C VIEW \u2500\u2500 */}
               {currentView === 'formC' && (
                 <FormC 
+                  profile={profile}
                   onBack={() => setCurrentView('dashboard')} 
-                  onComplete={() => submitMockForm('Form C')} 
+                  onComplete={() => handleFormComplete('Form C')} 
                 />
               )}
 
               {/* \u2500\u2500 FORM D VIEW \u2500\u2500 */}
               {currentView === 'formD' && (
                 <FormD 
+                  profile={profile}
                   onBack={() => setCurrentView('dashboard')} 
-                  onComplete={() => submitMockForm('Form D')} 
+                  onComplete={() => handleFormComplete('Form D')} 
                 />
               )}
 
               {/* \u2500\u2500 FORM E VIEW \u2500\u2500 */}
               {currentView === 'formE' && (
                 <FormE 
+                  profile={profile}
                   onBack={() => setCurrentView('dashboard')} 
-                  onComplete={() => submitMockForm('Form E')} 
+                  onComplete={() => handleFormComplete('Form E')} 
                 />
               )}
 
               {/* \u2500\u2500 FORM F VIEW \u2500\u2500 */}
               {currentView === 'formF' && (
                 <FormF 
+                  profile={profile}
                   onBack={() => setCurrentView('dashboard')} 
-                  onComplete={() => submitMockForm('Form F')} 
+                  onComplete={() => handleFormComplete('Form F')} 
                 />
               )}
 
               {/* \u2500\u2500 FORM G VIEW \u2500\u2500 */}
               {currentView === 'formG' && (
                 <FormG 
+                  profile={profile}
                   onBack={() => setCurrentView('dashboard')} 
-                  onComplete={() => submitMockForm('Form G')} 
+                  onComplete={() => handleFormComplete('Form G')} 
                 />
               )}
 
               {/* \u2500\u2500 FORM H VIEW \u2500\u2500 */}
               {currentView === 'formH' && (
                 <FormH 
+                  profile={profile}
                   onBack={() => setCurrentView('dashboard')} 
-                  onComplete={() => submitMockForm('Form H')} 
+                  onComplete={() => handleFormComplete('Form H')} 
                 />
               )}
 
               {/* \u2500\u2500 HARDSHIP VIEW \u2500\u2500 */}
               {currentView === 'hardship' && (
                 <HardshipBursary 
+                  profile={profile}
                   onBack={() => setCurrentView('dashboard')} 
-                  onComplete={() => submitMockForm('Hardship Bursary')} 
+                  onComplete={() => handleFormComplete('Hardship Bursary')} 
                 />
               )}
 
               {/* \u2500\u2500 SCHOLARSHIP VIEW \u2500\u2500 */}
               {currentView === 'scholarship' && (
                 <AcademicScholarship 
+                  profile={profile}
                   onBack={() => setCurrentView('dashboard')} 
-                  onComplete={() => submitMockForm('Scholarship')} 
+                  onComplete={() => handleFormComplete('Scholarship')} 
                 />
               )}
 
               {/* \u2500\u2500 PROFILE VIEW \u2500\u2500 */}
               {currentView === 'profile' && (
-                <StudentProfile />
+                <StudentProfile profile={profile} />
               )}
 
             </div>
