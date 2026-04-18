@@ -1,3 +1,4 @@
+import uuid
 from django.db import models
 from django.contrib.auth import get_user_model
 User = get_user_model()
@@ -90,6 +91,7 @@ class AuditLog(models.Model):
     action = models.CharField(max_length=255)
     timestamp = models.DateTimeField(auto_now_add=True)
     performed_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
+    role = models.CharField(max_length=50, blank=True, null=True)
     application = models.ForeignKey(Application, on_delete=models.SET_NULL, null=True, blank=True)
     details = models.TextField(blank=True, null=True)
 
@@ -97,13 +99,24 @@ class AuditLog(models.Model):
         ordering = ['-timestamp']
 
 class PolicySetting(models.Model):
-    category = models.CharField(max_length=50, unique=True) # tuition, living, travel, etc.
-    data = models.JSONField(default=dict)
-    updated_at = models.DateTimeField(auto_now=True)
-    updated_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    section = models.CharField(max_length=100)        # e.g. 'psssp_tuition'
+    field_key = models.CharField(max_length=100)      # e.g. 'full_time_no_dependents'
+    field_label = models.CharField(max_length=255)    # Human-readable label
+    value = models.DecimalField(max_digits=10, decimal_places=2)
+    unit = models.CharField(max_length=50, blank=True)  # '$', '%', 'weeks', 'days'
+    last_updated_by = models.ForeignKey(
+        User, # get_user_model() resolve to CustomUser
+        null=True, blank=True,
+        on_delete=models.SET_NULL
+    )
+    last_updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ('section', 'field_key')
 
     def __str__(self):
-        return f"Policy: {self.category}"
+        return f"{self.section} - {self.field_label}"
 
 class PolicyHistory(models.Model):
     setting = models.ForeignKey(PolicySetting, on_delete=models.CASCADE, related_name='history')
@@ -159,7 +172,8 @@ class Appeal(models.Model):
 
 class ShareableLink(models.Model):
     token = models.CharField(max_length=100, unique=True)
-    application = models.ForeignKey(Application, on_delete=models.CASCADE, related_name='share_links')
+    application = models.ForeignKey(Application, on_delete=models.CASCADE, related_name='share_links', null=True, blank=True)
+    submission = models.ForeignKey('forms.FormSubmission', on_delete=models.CASCADE, related_name='share_links', null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     expires_at = models.DateTimeField()
     is_active = models.BooleanField(default=True)

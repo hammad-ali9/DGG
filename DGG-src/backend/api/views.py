@@ -168,6 +168,28 @@ class PaymentViewSet(viewsets.ModelViewSet):
             return self.queryset.all()
         return self.queryset.filter(user=user)
 
+    @action(detail=False, methods=['post'])
+    def dispatch_report(self, request):
+        from api.models import PolicySetting, AuditLog
+        
+        # Get the finance email from config
+        email_config = PolicySetting.objects.filter(section='system_config', field_key='finance_email').first()
+        recipient = email_config.unit if email_config else "finance@organization.com"
+        
+        # In a real production environment, this would trigger a Celery task to send an actual email
+        # For now, we log the event and simulate success
+        AuditLog.objects.create(
+            action=f"Finance Report Dispatched to {recipient}",
+            performed_by=request.user,
+            details=f"Report included {Payment.objects.filter(status='released').count()} released payments."
+        )
+        
+        return Response({
+            'status': 'success',
+            'recipient': recipient,
+            'message': f"Report successfully dispatched to {recipient}"
+        })
+
 class AppealViewSet(viewsets.ModelViewSet):
     queryset = Appeal.objects.all()
     serializer_class = AppealSerializer

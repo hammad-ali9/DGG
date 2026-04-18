@@ -56,7 +56,7 @@ class FormSubmissionSerializer(serializers.ModelSerializer):
         # Only admins should see notes? For now let's return them
         # if the request user is staff.
         request = self.context.get('request')
-        if request and request.user.is_staff:
+        if request and (request.user.is_staff or request.user.role in ['admin', 'director']):
             return SubmissionNoteSerializer(obj.notes.all(), many=True).data
         return []
 

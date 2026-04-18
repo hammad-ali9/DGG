@@ -64,71 +64,90 @@ def seed():
     policies = [
         {
             'category': 'tuition',
-            'data': {
-                'data': [
-                    {'level': 'Undergraduate', 'limit': '5000', 'notes': 'Per semester limit'},
-                    {'level': 'Masters', 'limit': '8000', 'notes': 'Per semester limit'},
-                    {'level': 'Doctorate', 'limit': '10000', 'notes': 'Per semester limit'}
-                ]
-            }
+            'data': [
+                {'stream': 'C-DFN PSSSP', 'desc': 'Full-time University/College', 'amt': '5000', 'notes': 'Per semester limit', 'color': '#1a6b3a'},
+                {'stream': 'DGGR', 'desc': 'Graduate Studies (Masters/PhD)', 'amt': '8000', 'notes': 'Per semester limit', 'color': '#111'},
+                {'stream': 'UCEPP', 'desc': 'University Preparation', 'amt': '3500', 'notes': 'Max 2 semesters', 'color': '#cc3333'}
+            ]
         },
         {
             'category': 'living',
             'data': {
-                'data': {
-                    'effectiveDate': '2026-01-01',
-                    'sections': [
-                        {'label': 'Single Student', 'amount': '1500'},
-                        {'label': 'With 1 Dependent', 'amount': '2200'},
-                        {'label': 'With 2 Dependents', 'amount': '2600'}
-                    ]
-                }
+                'effectiveDate': '2026-01-01',
+                'sections': [
+                    {
+                        'title': 'SOUTHERN ALLOWANCES (EDMONTON/CALGARY)',
+                        'tag': 'ZONE 1',
+                        'data': [
+                            {'enroll': 'Full-Time', 'noDep': '1550', 'withDep': '2250', 'notes': 'Standard rate'},
+                            {'enroll': 'Part-Time', 'noDep': '0', 'withDep': '0', 'notes': 'Books/Tuition only'}
+                        ]
+                    },
+                    {
+                        'title': 'NORTHERN ALLOWANCES (YELLOWKNIFE/INUVIK)',
+                        'tag': 'ZONE 2',
+                        'data': [
+                            {'enroll': 'Full-Time', 'noDep': '1950', 'withDep': '2650', 'notes': 'High cost of living adj.'}
+                        ]
+                    }
+                ]
             }
         },
         {
             'category': 'travel',
-            'data': {
-                'data': [
-                    {'region': 'Northwest Territories', 'limit': '1200'},
-                    {'region': 'Alberta / BC', 'limit': '800'},
-                    {'region': 'Other CA Provinces', 'limit': '1500'}
-                ]
-            }
+            'data': [
+                {
+                    'title': 'KILOMETRIC RATES',
+                    'tag': 'Standard',
+                    'data': [
+                        {'param': 'Personal Vehicle (High)', 'value': '0.62', 'notes': 'Per km rate'},
+                        {'param': 'Personal Vehicle (Low)', 'value': '0.45', 'notes': 'Summer rate'}
+                    ]
+                },
+                {
+                    'title': 'INCIDENTALS & MEALS',
+                    'tag': 'Per Diem',
+                    'data': [
+                        {'param': 'Daily Incidental', 'noDep': '17.30', 'withDep': '17.30', 'notes': 'CAD'},
+                        {'param': 'Full Day Meal Rate', 'noDep': '112.50', 'withDep': '112.50', 'notes': 'Breakfast/Lunch/Dinner'}
+                    ]
+                }
+            ]
         },
         {
             'category': 'extraTuition',
             'data': {
-                'data': {
-                    'effectiveDate': '2026-01-01',
-                    'params': [
-                        {'name': 'Books & Supplies', 'limit': '500'},
-                        {'name': 'Equipment Allowance', 'limit': '1000'}
-                    ]
-                }
+                'effectiveDate': '2026-01-01',
+                'params': [
+                    {'param': 'Book Allowance', 'val': '1000', 'unit': 'per sem', 'notes': 'Auto-applied'},
+                    {'param': 'Lab Fees / Equipment', 'val': '500', 'unit': 'max', 'notes': 'Requires receipt'}
+                ]
             }
         },
         {
             'category': 'onetime',
-            'data': {
-                'data': [
-                    {'award': 'Graduation Award', 'amount': '1500'},
-                    {'award': 'Academic Excellence', 'amount': '1000'}
-                ]
-            }
+            'data': [
+                {
+                    'title': 'GRADUATION AWARDS',
+                    'tag': 'One-Time',
+                    'data': [
+                        {'type': 'Certificate/Diploma', 'amt': '500', 'notes': 'Paid upon completion'},
+                        {'type': 'Bachelors Degree', 'amt': '1500', 'notes': 'Paid upon convocation'}
+                    ]
+                }
+            ]
         },
         {
             'category': 'deadlines',
-            'data': {
-                'data': [
-                    {'semester': 'Fall', 'date': 'July 15'},
-                    {'semester': 'Winter', 'date': 'November 15'},
-                    {'semester': 'Spring/Summer', 'date': 'April 15'}
-                ]
-            }
+            'data': [
+                {'sem': 'Fall', 'deadline': 'July 15', 'notes': 'September Start'},
+                {'sem': 'Winter', 'deadline': 'Nov 15', 'notes': 'January Start'},
+                {'sem': 'Spring', 'deadline': 'April 15', 'notes': 'May Start'}
+            ]
         },
         {
             'category': 'timing',
-            'data': {'data': '15'}
+            'data': '15'
         }
     ]
 

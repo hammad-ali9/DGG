@@ -43,8 +43,29 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, allowedRoles 
 
   if (isLoading) {
     return (
-      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', background: '#f8fafc' }}>
-        <div style={{ fontSize: '14px', color: '#64748b' }}>Verifying security session...</div>
+      <div style={{ 
+          display: 'flex', 
+          flexDirection: 'column',
+          justifyContent: 'center', 
+          alignItems: 'center', 
+          height: '100vh', 
+          background: '#f8fafc',
+          gap: '16px'
+      }}>
+        <div className="admin-spinner" style={{ 
+            width: '40px', 
+            height: '40px', 
+            border: '3px solid #e2e8f0', 
+            borderTopColor: '#e5a662', 
+            borderRadius: '50%',
+            animation: 'admin-spin 1s linear infinite'
+        }}></div>
+        <div style={{ fontSize: '14px', color: '#64748b', fontWeight: '600' }}>Verifying security session...</div>
+        <style>{`
+          @keyframes admin-spin {
+            to { transform: rotate(360deg); }
+          }
+        `}</style>
       </div>
     );
   }
@@ -55,10 +76,13 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, allowedRoles 
     return <Navigate to={isStaffRoute ? "/internal/login" : "/signin"} state={{ from: location }} replace />;
   }
 
-  if (allowedRoles && userRole && !allowedRoles.includes(userRole)) {
+  const normalizedUserRole = userRole?.toLowerCase();
+  const normalizedAllowedRoles = allowedRoles?.map(role => role.toLowerCase());
+
+  if (normalizedAllowedRoles && normalizedUserRole && !normalizedAllowedRoles.includes(normalizedUserRole)) {
     // Role not allowed - redirect to their native dashboard or sign in
-    if (userRole === 'student') return <Navigate to="/dashboard" replace />;
-    if (userRole === 'admin' || userRole === 'director') return <Navigate to="/staff" replace />;
+    if (normalizedUserRole === 'student') return <Navigate to="/dashboard" replace />;
+    if (['admin', 'director', 'ssw'].includes(normalizedUserRole)) return <Navigate to="/staff" replace />;
     return <Navigate to="/signin" replace />;
   }
 

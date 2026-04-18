@@ -53,6 +53,11 @@ class FormService:
             submission.decided_at = timezone.now()
             submission.decided_by = performed_by
             submission.decision_reason = extra_data.get('reason', '')
+            
+            # AUTOMATED CALCULATION & PAYMENT GENERATION
+            if new_status == 'accepted':
+                from api.services.calculation_service import CalculationService
+                CalculationService.calculate_and_pay(submission)
         
         submission.save()
         

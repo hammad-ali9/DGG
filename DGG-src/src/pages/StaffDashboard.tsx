@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import API from '../api/client';
 import { jsPDF } from 'jspdf';
+import * as XLSX from 'xlsx';
 import '../styles/staff.css';
 
 // Admin Icons
@@ -29,12 +30,18 @@ const AdminIcons = {
 type ViewMode = 'dashboard' | 'applications' | 'detail' | 'policy' | 'reports' | 'director' | 'payments' | 'director-queue' | 'director-detail' | 'appeals';
 
 const StaffDashboard: React.FC = () => {
-  const [role, setRole] = useState<'ssw' | 'director'>((localStorage.getItem('dgg_role') as any) === 'director' ? 'director' : 'ssw');
+  const [role, setRole] = useState<'ssw' | 'director'>(
+    (localStorage.getItem('dgg_role')?.toLowerCase() === 'director') ? 'director' : 'ssw'
+  );
   const [currentView, setCurrentView] = useState<ViewMode>(role === 'director' ? 'director-queue' : 'dashboard');
   const [selectedAppId, setSelectedAppId] = useState<string | null>(null);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [decisionNotes, setDecisionNotes] = useState('');
-  const [fiscalYear] = useState('2024-2025');
+  const [reportFundingType, setReportFundingType] = useState('all');
+  const [reportSubFilter, setReportSubFilter] = useState('students');
+  const [showFinanceModal, setShowFinanceModal] = useState(false);
+  const [financeEmail, setFinanceEmail] = useState('finance@organization.com');
+  const [isExporting, setIsExporting] = useState(false);
   const navigate = useNavigate();
 
   const [applications, setApplications] = useState<any[]>([]);
@@ -47,42 +54,26 @@ const StaffDashboard: React.FC = () => {
 
   const fetchApplications = async () => {
     try {
-      const data = await API.getSubmissions() as any;
-      setApplications(data);
+      const resp = await API.getSubmissions() as any;
+      setApplications(Array.isArray(resp) ? resp : []);
       
-      const statsData = await API.getDashboardStats() as any;
-      setBackendStats(statsData);
+      const stats = await API.getDashboardStats() as any;
+      setBackendStats(stats || null);
 
-      const notifsData = await API.getNotifications() as any;
-      setNotifications(notifsData);
+      const notifs = await API.getNotifications() as any;
+      setNotifications(Array.isArray(notifs) ? notifs : []);
 
       // Verify role from profile to ensure absolute sync
       const me = await API.getMe() as any;
       setUserData(me);
-      if (me.role === 'director' && role !== 'director') {
+      const mappedRole = me.role?.toLowerCase();
+
+      if (mappedRole === 'director' && role !== 'director') {
         setRole('director');
         localStorage.setItem('dgg_role', 'director');
-      } else if (me.role === 'admin' && role !== 'ssw') {
+      } else if ((mappedRole === 'admin' || mappedRole === 'ssw') && role !== 'ssw') {
         setRole('ssw');
         localStorage.setItem('dgg_role', 'admin');
-      }
-
-      // Sync Payments, Appeals and Policies for real-time overview widgets
-      if (currentView === 'dashboard' || currentView === 'director-queue') {
-         const [pay, app, pol] = await Promise.all([
-            API.getPayments(),
-            API.getAppeals(),
-            API.getPolicySettings()
-         ]) as any[];
-         setPayments(pay);
-         setAppeals(app);
-         if (pol.tuition) setTuitionPolicy(pol.tuition.data);
-         if (pol.extraTuition) setExtraTuitionPolicy(pol.extraTuition.data);
-         if (pol.living) setLivingPolicy(pol.living.data);
-         if (pol.travel) setTravelPolicy(pol.travel.data);
-         if (pol.onetime) setOnetimePolicy(pol.onetime.data);
-         if (pol.deadlines) setDeadlinesPolicy(pol.deadlines.data);
-         if (pol.timing) setTimingPolicy(pol.timing.data);
       }
     } catch (err: any) {
       console.error('Data sync failed:', err);
@@ -106,22 +97,60 @@ const StaffDashboard: React.FC = () => {
     fetchApplications();
     const interval = setInterval(fetchApplications, 5000); // 5-second polling
     return () => clearInterval(interval);
+  }, [reportFundingType]); // Re-fetch when funding type filter changes
+
+  useEffect(() => {
+    const fetchFinanceConfig = async () => {
+      try {
+        const settings = await API.getPolicySettings() as any;
+        const config = settings.find((s: any) => s.section === 'system_config' && s.field_key === 'finance_email');
+        if (config) setFinanceEmail(config.unit || 'finance@organization.com');
+      } catch (e) {}
+    };
+    fetchFinanceConfig();
   }, []);
+
+  const handleExcelExport = () => {
+    setIsExporting(true);
+    try {
+      const exportData = payments.map(p => ({
+        'Student ID': `DGG-${p.user.toString().padStart(5, '0')}`,
+        'Student Full Name': userData?.full_name || 'Student', 
+        'Funding Type': (p.payment_type || '').includes('DGGR') ? 'DGGR' : ((p.payment_type || '').includes('UCEPP') ? 'UCEPP' : 'CDFN'),
+        'Approved Amount': parseFloat(p.amount),
+        'Approval Date': new Date(p.date_issued).toLocaleDateString(),
+        'Quarter': `Q${Math.floor(new Date(p.date_issued).getMonth() / 3) + 1}`,
+        'Payment Status': p.status.toUpperCase()
+      }));
+
+      const worksheet = XLSX.utils.json_to_sheet(exportData);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, "Approved Payments");
+      XLSX.writeFile(workbook, `Approved_Payments_Report_${new Date().toISOString().split('T')[0]}.xlsx`);
+      setShowFinanceModal(true);
+    } catch (err) {
+      alert("Export failed");
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
   const [backendStats, setBackendStats] = useState<any>(null);
 
   const getStats = () => {
+    if (!backendStats) return { totalApps: 0, approvedAmount: 0, underReview: 0, activeStudents: 0, pssspCount: 0, otherCount: 0, pssspPercent: 0, livingApps: 0, travelApps: 0, scholarshipApps: 0 };
+    
     return { 
-      totalApps: backendStats?.total_submissions || 0, 
-      approvedAmount: backendStats?.total_funding_approved || 0, 
-      underReview: (backendStats?.submissions_by_status?.pending || 0) + (backendStats?.submissions_by_status?.reviewed || 0) + (backendStats?.submissions_by_status?.forwarded || 0), 
-      activeStudents: backendStats?.total_students || 0, 
-      pssspCount: backendStats?.submissions_by_form?.['FormA'] || 0, 
-      otherCount: (backendStats?.total_submissions || 0) - (backendStats?.submissions_by_form?.['FormA'] || 0), 
-      pssspPercent: (backendStats?.total_submissions || 0) > 0 ? ((backendStats?.submissions_by_form?.['FormA'] || 0) / backendStats.total_submissions) * 100 : 0, 
-      livingApps: backendStats?.submissions_by_status?.pending || 0, 
-      travelApps: backendStats?.submissions_by_form?.['FormE'] || 0, 
-      scholarshipApps: backendStats?.submissions_by_form?.['scholarship'] || 0 
+      totalApps: backendStats.total_submissions || 0, 
+      approvedAmount: backendStats.total_funding_approved || 0, 
+      underReview: (backendStats.submissions_by_status?.pending || 0) + (backendStats.submissions_by_status?.reviewed || 0) + (backendStats.submissions_by_status?.forwarded || 0), 
+      activeStudents: backendStats.total_students || 0, 
+      pssspCount: backendStats.submissions_by_form?.['FormA'] || 0, 
+      otherCount: (backendStats.total_submissions || 0) - (backendStats.submissions_by_form?.['FormA'] || 0), 
+      pssspPercent: (backendStats.total_submissions || 0) > 0 ? ((backendStats.submissions_by_form?.['FormA'] || 0) / backendStats.total_submissions) * 100 : 0, 
+      livingApps: backendStats.submissions_by_status?.pending || 0, 
+      travelApps: backendStats.submissions_by_form?.['FormE'] || 0, 
+      scholarshipApps: backendStats.submissions_by_form?.['scholarship'] || 0 
     };
   };
 
@@ -131,12 +160,26 @@ const StaffDashboard: React.FC = () => {
 
   const handleDecision = async (status: 'accepted' | 'rejected' | 'forwarded') => {
     if (!selectedAppId) return;
+    const currentApp = applications.find(a => String(a.id) === String(selectedAppId));
+    
+    // Immutable storage: Capture auto-calculated total at time of approval
+    let amountToSave = currentApp?.amount || 0;
+    if (status === 'accepted') {
+      const autoSuggested = calculateAutoFunding(currentApp);
+      if (autoSuggested && !currentApp?.amount) {
+        amountToSave = autoSuggested.total;
+      }
+    }
+
     try {
-      await API.updateSubmissionStatus(Number(selectedAppId), status);
+      await API.updateSubmissionStatus(Number(selectedAppId), status, {
+        decision_notes: decisionNotes,
+        amount: amountToSave
+      });
       setShowConfirmModal(false);
       setDecisionNotes('');
       setCurrentView(role === 'director' ? 'director-queue' : 'applications');
-      fetchApplications(); // Refresh list
+      fetchApplications();
     } catch (err: any) {
       alert(err.message || 'Action failed');
     }
@@ -145,7 +188,7 @@ const StaffDashboard: React.FC = () => {
   const handleShareView = async () => {
     if (!selectedAppId) return;
     try {
-       const resp = await API.generateShareLink(Number(selectedAppId));
+       const resp = await API.generateShareLink(Number(selectedAppId)) as any;
        const url = `${window.location.origin}/shared/${resp.token}`;
        await navigator.clipboard.writeText(url);
        alert('Secure share link (valid for 7 days) copied to clipboard!');
@@ -167,43 +210,49 @@ const StaffDashboard: React.FC = () => {
 
   const handlePDFExport = () => {
     if (!selectedAppId) return;
-    const app = applications.find(a => String(a.id) === String(selectedAppId));
-    if (!app) return;
+    try {
+      const app = applications.find(a => String(a.id) === String(selectedAppId));
+      if (!app) {
+        alert('Application data not found. Please refresh.');
+        return;
+      }
 
-    const doc = new jsPDF();
-    doc.setFontSize(20);
-    doc.text('DGG Application Summary', 20, 20);
-    doc.setFontSize(12);
-    doc.text(`Reference: # ${app.id}`, 20, 30);
-    doc.text(`Student: ${app.student_details?.full_name || 'N/A'}`, 20, 40);
-    doc.text(`Form: ${app.form_title || 'N/A'}`, 20, 50);
-    doc.text(`Status: ${app.status.toUpperCase()}`, 20, 60);
-    doc.text(`Submitted: ${new Date(app.submitted_at).toLocaleDateString()}`, 20, 70);
-    
-    doc.text('------------------------------------------------', 20, 80);
-    doc.text('Decision Details:', 20, 90);
-    doc.text(`Authorized Amount: $${app.amount || 0}`, 20, 100);
-    doc.text(`Notes: ${app.office_use_data?.notes || 'None'}`, 20, 110);
-    
-    doc.save(`Application_${app.id}.pdf`);
+      console.log('Generating PDF for:', app.id);
+      const doc = new jsPDF();
+      doc.setFontSize(20);
+      doc.text('DGG Application Summary', 20, 20);
+      doc.setFontSize(12);
+      doc.text(`Reference: # ${app.id}`, 20, 30);
+      doc.text(`Student: ${app.student_details?.full_name || app.student_name || 'N/A'}`, 20, 40);
+      doc.text(`Form: ${app.form_title || 'N/A'}`, 20, 50);
+      doc.text(`Status: ${(app.status || 'pending').toUpperCase()}`, 20, 60);
+      doc.text(`Submitted: ${app.submitted_at ? new Date(app.submitted_at).toLocaleDateString() : 'N/A'}`, 20, 70);
+      
+      doc.text('------------------------------------------------', 20, 80);
+      doc.text('Decision Details:', 20, 90);
+      doc.text(`Authorized Amount: $${app.amount || 0}`, 20, 100);
+      doc.text(`Notes: ${app.decision_notes || 'None'}`, 20, 110);
+      
+      doc.save(`Application_${app.id}.pdf`);
+    } catch (err: any) {
+      console.error('PDF Export Error:', err);
+      alert('PDF generation failed: ' + err.message);
+    }
   };
 
   const handleAddNote = async () => {
     if (!selectedAppId || !staffNote.trim()) return;
-    setIsLoading(true);
     try {
       await API.addSubmissionNote(Number(selectedAppId), staffNote);
       setStaffNote('');
-      await fetchApplications(); // Refresh list to get new notes
+      fetchApplications(); // Refresh list to get new notes
     } catch (err: any) {
       alert(err.message || 'Failed to add note');
-    } finally {
-      setIsLoading(false);
     }
   };
 
   const handleAppClick = (appId: number) => {
-    setSelectedAppId(appId);
+    setSelectedAppId(String(appId));
     setCurrentView(role === 'director' ? 'director-detail' : 'detail');
   };
 
@@ -211,88 +260,51 @@ const StaffDashboard: React.FC = () => {
   const [isSavingOffice, setIsSavingOffice] = useState(false);
 
   // ── POLICY SETTINGS STATE ──
-  const [tuitionPolicy, setTuitionPolicy] = useState<any[]>([
-    { stream: 'C-DFN PSSSP', desc: 'Standard tuition bursary for valid status students', amt: '5000', notes: 'Per Semester', color: '#1a6b3a' },
-    { stream: 'DGGR', desc: 'Top-up bursary for community members', amt: '2500', notes: 'Semester Max', color: '#1e293b' }
-  ]);
-  const [extraTuitionPolicy, setExtraTuitionPolicy] = useState<any>({
-    effectiveDate: '2024-04-01',
-    params: [
-      { param: 'Books & Supplies', val: '1000', rule: 'Standard award' },
-      { param: 'Equipment', val: '500', rule: 'One-time per year' }
-    ]
+  const [policySettings, setPolicySettings] = useState<Record<string, any[]>>({});
+  const [isDirty, setIsDirty] = useState<Record<string, boolean>>({});
+  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
+    'application_deadlines': true // Open first by default
   });
-  const [livingPolicy, setLivingPolicy] = useState<any>({
-    effectiveDate: '2024-04-01',
-    sections: [
-      { label: 'Single Student', amount: '1500', rule: 'Standard Monthly' },
-      { label: 'Student with 1 Dependent', amount: '2200', rule: 'Increased rate' },
-      { label: 'Student with 2+ Dependents', amount: '2800', rule: 'Max rate' }
-    ]
-  });
-  const [travelPolicy, setTravelPolicy] = useState<any[]>([
-    { region: 'Northern', amt: '1200' },
-    { region: 'Urban', amt: '400' }
-  ]);
-  const [onetimePolicy, setOnetimePolicy] = useState<any[]>([
-    { award: 'Graduation Award', amt: '1000' }
-  ]);
-  const [deadlinesPolicy, setDeadlinesPolicy] = useState<any[]>([
-    { sem: 'Fall', deadline: 'Jul 15' },
-    { sem: 'Winter', deadline: 'Nov 15' }
-  ]);
-  const [timingPolicy, setTimingPolicy] = useState('15');
-  const [policyHistory, setPolicyHistory] = useState<any[]>([]);
 
-  const [isPolicyLoading, setIsPolicyLoading] = useState(false);
+  const getPolicySetting = (section: string, fieldKey: string): number => {
+    const fields = policySettings[section] || [];
+    const field = fields.find(f => f.field_key === fieldKey);
+    return field ? parseFloat(field.value) : 0;
+  };
+
 
   const fetchPolicySettings = async () => {
-    setIsPolicyLoading(true);
     try {
       const data = await API.getPolicySettings() as any;
-      if (data.tuition) setTuitionPolicy(data.tuition.data);
-      if (data.extraTuition) setExtraTuitionPolicy(data.extraTuition.data);
-      if (data.living) setLivingPolicy(data.living.data);
-      if (data.travel) setTravelPolicy(data.travel.data);
-      if (data.onetime) setOnetimePolicy(data.onetime.data);
-      if (data.deadlines) setDeadlinesPolicy(data.deadlines.data);
-      if (data.timing) setTimingPolicy(data.timing.data);
-      
-      // Combine all history
-      const allHistory: any[] = [];
-      Object.keys(data).forEach(key => {
-        if (data[key].history) {
-          data[key].history.forEach((h: any) => {
-            allHistory.push({
-              time: h.timestamp,
-              user: h.user_name,
-              field: h.field_changed,
-              old: h.old_value,
-              new: h.new_value,
-              effective: h.effective_date
-            });
-          });
-        }
-      });
-      if (allHistory.length > 0) {
-        setPolicyHistory(allHistory.sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime()));
-      }
+      setPolicySettings(data || {});
+      // Reset dirty state on fetch
+      setIsDirty({});
     } catch (err) {
       console.error('Failed to fetch policy settings:', err);
-    } finally {
-      setIsPolicyLoading(false);
-    }
+    } 
   };
+
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (Object.values(isDirty).some(v => v)) {
+        e.preventDefault();
+        e.returnValue = 'You have unsaved changes. Are you sure you want to leave?';
+        return e.returnValue;
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [isDirty]);
 
   useEffect(() => {
     if (currentView === 'policy') {
       fetchPolicySettings();
     }
     if (currentView === 'payments') {
-       API.getPayments().then(setPayments).catch(e => console.error('Payments fetch failed', e));
+       API.getPayments().then(res => setPayments(Array.isArray(res) ? res : [])).catch(e => console.error('Payments fetch failed', e));
     }
     if (currentView === 'appeals') {
-       API.getAppeals().then(setAppeals).catch(e => console.error('Appeals fetch failed', e));
+       API.getAppeals().then(res => setAppeals(Array.isArray(res) ? res : [])).catch(e => console.error('Appeals fetch failed', e));
     }
   }, [currentView]);
 
@@ -327,32 +339,9 @@ const StaffDashboard: React.FC = () => {
      }
   };
 
-  const [isPolicySaving, setIsPolicySaving] = useState(false);
-  const handleSavePolicy = async () => {
-    setIsPolicySaving(true);
-    try {
-      // Save all categories — in a real app, you might only save the active tab
-      await API.updatePolicySetting('tuition', tuitionPolicy);
-      await API.updatePolicySetting('extraTuition', extraTuitionPolicy);
-      await API.updatePolicySetting('living', livingPolicy);
-      await API.updatePolicySetting('travel', travelPolicy);
-      await API.updatePolicySetting('onetime', onetimePolicy);
-      await API.updatePolicySetting('deadlines', deadlinesPolicy);
-      await API.updatePolicySetting('timing', timingPolicy);
-      
-      alert('Policy settings saved successfully across all categories.');
-      fetchPolicySettings(); // Refresh to get updated history
-    } catch (err: any) {
-      alert(err.message || 'Failed to save policy changes');
-    } finally {
-      setIsPolicySaving(false);
-    }
-  };
 
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
-  const [policyTab, setPolicyTab] = useState('tuition');
-  const [reportTab, setReportTab] = useState('overview');
 
   const filteredApps = applications.filter(app => {
     const fullName = (app.student_details?.full_name || '').toLowerCase();
@@ -367,20 +356,34 @@ const StaffDashboard: React.FC = () => {
   const selectedApp = applications.find(a => String(a.id) === String(selectedAppId));
 
   const calculateAutoFunding = (app: any) => {
-    if (!app || !app.answers) return null;
+    if (!app || !app.answers || !policySettings) return null;
+    
+    const student = app.student_details || {};
+    const profile = student.profile || {};
     
     // helper to get answer by label (case-insensitive fuzzy match)
     const getAns = (label: string) => app.answers.find((a: any) => a.field_label?.toLowerCase().includes(label.toLowerCase()))?.answer_text;
 
-    const stream = getAns('bursaryStream') || 'DGGR';
+    const stream = getAns('bursaryStream') || student.primary_stream || 'DGGR';
+    const enrollment = getAns('enrollmentType')?.toLowerCase() || student.enrollment_status?.toLowerCase() || 'full-time';
+    const isFullTime = enrollment.includes('full');
+    const hasDeps = (getAns('hasDependents')?.toLowerCase() === 'yes') || (student.num_dependents > 0);
     const requestedTuition = parseFloat(getAns('tuition') || '0');
     const startStr = getAns('semStart');
     const endStr = getAns('semEnd');
-    const hasDeps = getAns('hasDependents') === 'yes';
-    const numDeps = parseInt(getAns('dependentCount') || '0');
 
-    // 1. Duration Calculation (standardize to integer months)
-    let months = 4; // Default standard semester
+    // 0. Eligibility Check (NWT SFA)
+    const isNwtSfaEligible = profile.is_sfa_active || student.financial_assistance_status === 'Eligible';
+    if ((stream.includes('PSSSP') || stream.includes('UCEPP')) && isNwtSfaEligible) {
+      return {
+        total: 0,
+        ineligible: true,
+        reason: 'Student is eligible for NWT SFA; PSSSP/UCEPP funding not applicable.'
+      };
+    }
+
+    // 1. Duration Calculation
+    let months = 4;
     if (startStr && endStr) {
       const start = new Date(startStr);
       const end = new Date(endStr);
@@ -391,37 +394,95 @@ const StaffDashboard: React.FC = () => {
     }
 
     // 2. Living Allowance
-    let livingRate = 1500; // base fallback
-    if (livingPolicy?.sections && livingPolicy.sections.length > 0) {
-      if (!hasDeps) {
-        livingRate = parseFloat(livingPolicy.sections[0]?.amount || '1500');
-      } else {
-        // match by dependent count in label if available, else pick "With Dependent" one
-        const section = livingPolicy.sections.find((s: any) => s.label?.includes(String(numDeps))) || livingPolicy.sections[1] || livingPolicy.sections[0];
-        livingRate = parseFloat(section?.amount || '2200');
-      }
-    }
+    let livingSection = 'dggr_living';
+    if (stream.includes('PSSSP')) livingSection = 'psssp_living';
+    else if (stream.includes('UCEPP')) livingSection = 'ucepp_living';
+
+    const depKey = hasDeps ? 'with_dependents' : 'no_dependents';
+    const loadKey = isFullTime ? 'fulltime' : 'parttime';
+    const fieldKey = `${loadKey}_${depKey}`;
+    
+    const livingRate = getPolicySetting(livingSection, fieldKey);
     const totalLiving = livingRate * months;
 
     // 3. Tuition
-    let tuitionLimit = 5000;
-    if (tuitionPolicy && tuitionPolicy.length > 0) {
-      tuitionLimit = parseFloat(tuitionPolicy[0]?.limit || '5000');
+    let tuitionSection = 'dggr_tuition';
+    if (stream.includes('PSSSP')) tuitionSection = 'psssp_tuition';
+    else if (stream.includes('UCEPP')) tuitionSection = 'ucepp_tuition';
+
+    let tuitionLimit = 0;
+    if (tuitionSection === 'psssp_tuition' || tuitionSection === 'ucepp_tuition') {
+      tuitionLimit = getPolicySetting(tuitionSection, 'max_per_semester');
+    } else {
+      tuitionLimit = getPolicySetting('dggr_tuition', isFullTime ? 'fulltime_per_semester' : 'parttime_per_semester');
     }
+
     const finalTuition = requestedTuition > 0 ? Math.min(requestedTuition, tuitionLimit) : tuitionLimit;
 
-    // 4. Books (Extra Tuition)
-    let booksAmount = 1000;
-    if (extraTuitionPolicy?.params) {
-      const bookParam = extraTuitionPolicy.params.find((p: any) => p.param?.toLowerCase().includes('book'));
-      booksAmount = parseFloat(bookParam?.val || '1000');
+    // 4. Extra Tuition (DGGR Only)
+    let extraAmount = 0;
+    if (stream.includes('DGGR') && requestedTuition > tuitionLimit) {
+      const threshold = getPolicySetting('dggr_extra_tuition', 'threshold_per_semester');
+      if (requestedTuition >= threshold) {
+        const maxPercent = getPolicySetting('dggr_extra_tuition', 'max_percent_covered') / 100;
+        const maxCap = getPolicySetting('dggr_extra_tuition', 'max_per_semester');
+        extraAmount = Math.min((requestedTuition - tuitionLimit) * maxPercent, maxCap);
+      }
     }
 
+    // 5. Special Awards/Bursaries
+    let specialAwards = 0;
+    let specialNote = "";
+
+    // Graduation Bursary (FormG)
+    if (app.form_type === 'FormG') {
+      const degreeType = getAns('degreeType') || student.program_credential;
+      if (degreeType) {
+        // Map common titles to field keys
+        const mappedKey = degreeType.toLowerCase().replace(/ /g, '_');
+        specialAwards = getPolicySetting('dggr_grad_bursary', mappedKey);
+        specialNote = `Graduation Bursary: ${degreeType}`;
+      }
+    }
+
+    // Academic Scholarship (GPA Check)
+    const gpa = parseFloat(getAns('gpa') || '0');
+    if (gpa > 0) {
+      const highThreshold = getPolicySetting('dggr_academic_scholarship', 'high_threshold_percent');
+      const midThresholdLower = getPolicySetting('dggr_academic_scholarship', 'mid_threshold_lower');
+      const midThresholdUpper = getPolicySetting('dggr_academic_scholarship', 'mid_threshold_upper');
+
+      if (gpa >= highThreshold) {
+        specialAwards += getPolicySetting('dggr_academic_scholarship', 'high_achievement_award');
+      } else if (gpa >= midThresholdLower && gpa <= midThresholdUpper) {
+        specialAwards += getPolicySetting('dggr_academic_scholarship', 'mid_achievement_award');
+      }
+    }
+
+    // Hardcoded Book Allowance Replacement
+    const bookAllowance = getPolicySetting('eligibility_rules', 'min_program_weeks') > 0 ? 500 : 0; // Simplified for now, or use a specific field
+
     return {
-      tuition: { system: finalTuition, requested: requestedTuition, rule: `Max $${tuitionLimit} per semester` },
-      living: { system: totalLiving, rate: livingRate, months, rule: `$${livingRate}/mo for ${months} mons` },
-      books: { system: booksAmount, rule: 'Standard award' },
-      total: finalTuition + totalLiving + booksAmount,
+      tuition: { 
+        system: finalTuition, 
+        requested: requestedTuition, 
+        rule: `Max $${tuitionLimit} per semester` 
+      },
+      living: { 
+        system: totalLiving, 
+        rate: livingRate, 
+        months, 
+        rule: `$${livingRate}/mo for ${months} mons` 
+      },
+      books: {
+        system: 500, // Move to system_config later if requested
+        rule: '$500 per semester standard allowance'
+      },
+      special: {
+        system: specialAwards,
+        rule: specialNote
+      },
+      total: finalTuition + totalLiving + extraAmount + 500 + specialAwards,
       stream
     };
   };
@@ -1146,797 +1207,321 @@ const StaffDashboard: React.FC = () => {
                       </div>
                     </div>
                   </div>
-
                 </div>
               </div>
             </div>
           )}
 
-          {/* Policy Settings View */}
-          {currentView === 'policy' && (
-            <div className="fade-in">
-              <div className="policy-tabs" style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0', borderRadius: '8px 8px 0 0', padding: '0 20px' }}>
-                <div className={`policy-tab ${policyTab === 'tuition' ? 'active' : ''}`} onClick={() => setPolicyTab('tuition')}>TUITION BURSARIES</div>
-                <div className={`policy-tab ${policyTab === 'living' ? 'active' : ''}`} onClick={() => setPolicyTab('living')}>LIVING ALLOWANCES</div>
-                <div className={`policy-tab ${policyTab === 'travel' ? 'active' : ''}`} onClick={() => setPolicyTab('travel')}>TRAVEL BURSARIES</div>
-                <div className={`policy-tab ${policyTab === 'onetime' ? 'active' : ''}`} onClick={() => setPolicyTab('onetime')}>ONE-TIME AWARDS</div>
-                <div className={`policy-tab ${policyTab === 'deadlines' ? 'active' : ''}`} onClick={() => setPolicyTab('deadlines')}>DEADLINES & PAYMENT</div>
-                <div className={`policy-tab ${policyTab === 'rules' ? 'active' : ''}`} onClick={() => setPolicyTab('rules')}>ELIGIBILITY RULES</div>
-                <div className={`policy-tab ${policyTab === 'history' ? 'active' : ''}`} onClick={() => setPolicyTab('history')}>CHANGE HISTORY</div>
-              </div>
-
-              <div className="admin-chart-card" style={{ borderTopLeftRadius: '0', borderTopRightRadius: '0' }}>
-                {policyTab === 'tuition' && (
-                  <div className="fade-in">
-                    <div style={{ padding: '20px', background: '#eff6ff', border: '1px solid #dbeafe', borderRadius: '8px', marginBottom: '24px', fontSize: '12px', color: '#1e40af', lineHeight: '1.6' }}>
-                      Tuition bursary amounts are paid per semester. Amounts must be stored with an effective date — changes apply to applications submitted from that date onward. All students applying for the same semester receive the same rates.
-                    </div>
-
-                    <div style={{ marginBottom: '32px' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                        <h4 style={{ fontSize: '11px', fontWeight: '800', color: '#1e293b' }}>TUITION BURSARIES — PER SEMESTER</h4>
-                        <span className="admin-badge badge-approved" style={{ fontSize: '9px', background: '#f0fdf4', color: '#166534' }}>C-DFN PSSSP & DGGR</span>
+                {/* Policy Settings View */}
+                {currentView === 'policy' && (
+                  <div className="fade-in" style={{ padding: '0 20px 40px' }}>
+                    <div style={{ marginBottom: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div>
+                        <h2 style={{ fontSize: '24px', fontWeight: '800', color: '#1e293b' }}>Policy Settings</h2>
+                        <p style={{ fontSize: '14px', color: '#64748b', marginTop: '4px' }}>Configure funding rules, rates, and deadlines. Changes affect all future calculations.</p>
                       </div>
-                      <div className="admin-table-wrap" style={{ border: 'none', boxShadow: 'none' }}>
-                        <table className="admin-table table-dense">
-                          <thead>
-                            <tr style={{ background: '#f8fafc' }}>
-                              <th>STREAM</th>
-                              <th style={{ width: '300px' }}>DESCRIPTION</th>
-                              <th>MAX AMOUNT ($)</th>
-                              <th>NOTES / RULE</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {tuitionPolicy.map((row, i) => (
-                              <tr key={i}>
-                                <td><span className="admin-badge" style={{ background: row.color, display: 'inline-block', width: '100px', textAlign: 'center' }}>{row.stream}</span></td>
-                                <td style={{ fontSize: '12px' }}>{row.desc}</td>
-                                <td>
-                                  <input 
-                                    type="text" 
-                                    className="admin-input" 
-                                    value={row.amt} 
-                                    style={{ width: '100px', textAlign: 'center' }} 
-                                    onChange={(e) => {
-                                      const newVal = [...tuitionPolicy];
-                                      newVal[i].amt = e.target.value;
-                                      setTuitionPolicy(newVal);
-                                    }}
-                                  />
-                                </td>
-                                <td style={{ fontSize: '11px', color: '#64748b' }}>{row.notes}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-
-                    <div style={{ marginBottom: '32px' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                        <h4 style={{ fontSize: '11px', fontWeight: '800', color: '#1e293b' }}>DGGR EXTRA TUITION BURSARY</h4>
-                        <span className="admin-badge" style={{ fontSize: '9px', background: '#fff7ed', color: '#c2410c' }}>DGGR ONLY</span>
-                      </div>
-                      <div className="admin-table-wrap" style={{ border: 'none', boxShadow: 'none' }}>
-                        <table className="admin-table table-dense">
-                          <thead>
-                            <tr style={{ background: '#f8fafc' }}>
-                              <th style={{ width: '400px' }}>PARAMETER</th>
-                              <th>VALUE</th>
-                              <th>NOTES</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {extraTuitionPolicy.params.map((row, i) => (
-                              <tr key={i}>
-                                <td style={{ fontWeight: '700' }}>{row.param}</td>
-                                <td>
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                    <input 
-                                      type="text" 
-                                      className="admin-input" 
-                                      value={row.val} 
-                                      style={{ width: '100px', textAlign: 'center' }} 
-                                      onChange={(e) => {
-                                        const newVal = {...extraTuitionPolicy};
-                                        newVal.params[i].val = e.target.value;
-                                        setExtraTuitionPolicy(newVal);
-                                      }}
-                                    />
-                                    <span style={{ fontSize: '12px', color: '#64748b' }}>{row.unit}</span>
-                                  </div>
-                                </td>
-                                <td style={{ fontSize: '11px', color: '#64748b' }}>{row.notes}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-
-                    <div style={{ padding: '16px', background: '#fff9f2', borderRadius: '8px', border: '1px solid #fde6d2', display: 'flex', alignItems: 'center', gap: '20px' }}>
-                      <div style={{ fontSize: '11px', fontWeight: '700', color: '#854d0e' }}>EFFECTIVE DATE:</div>
-                      <input 
-                        type="text" 
-                        className="admin-input" 
-                        value={extraTuitionPolicy.effectiveDate} 
-                        style={{ width: '140px' }} 
-                        onChange={(e) => setExtraTuitionPolicy({...extraTuitionPolicy, effectiveDate: e.target.value})}
-                      />
-                      <div style={{ fontSize: '11px', color: '#b45309' }}>Changes apply to all applications submitted on or after this date (same semester → same rate for all students).</div>
-                    </div>
-                  </div>
-                )}
-
-                {policyTab === 'living' && (
-                  <div className="fade-in">
-                    <div style={{ padding: '20px', background: '#eff6ff', border: '1px solid #dbeafe', borderRadius: '8px', marginBottom: '24px', fontSize: '12px', color: '#1e40af', lineHeight: '1.6' }}>
-                      Monthly living allowances are paid on the 1st of each month the student is enrolled. Full-time vs. part-time is determined by the institution's Form B, not the student's self-report. A documented disability allows full-time classification at a lower course load.
-                    </div>
-
-                    {livingPolicy.sections.map((section, idx) => (
-                      <div key={idx} style={{ marginBottom: '32px' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                          <h4 style={{ fontSize: '13px', fontWeight: '800', color: '#1e293b' }}>{section.title}</h4>
-                          <span className="admin-badge badge-review" style={{ fontSize: '9px', opacity: 0.8 }}>{section.tag}</span>
+                      {role !== 'director' && (
+                        <div style={{ background: '#fef2f2', border: '1px solid #fecaca', color: '#b91c1c', padding: '10px 16px', borderRadius: '8px', fontSize: '13px', fontWeight: '600' }}>
+                          READ-ONLY ACCESS: Only the Director of Education can modify policy settings.
                         </div>
-                        <div className="admin-table-wrap" style={{ border: 'none', boxShadow: 'none' }}>
-                          <table className="admin-table">
-                            <thead>
-                              <tr style={{ background: '#f8fafc' }}>
-                                <th style={{ width: '200px' }}>ENROLLMENT</th>
-                                <th>NO DEPENDENTS ($/MO)</th>
-                                <th>WITH DEPENDENTS ($/MO)</th>
-                                <th>NOTES</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {section.data.map((row, rIdx) => (
-                                <tr key={rIdx}>
-                                  <td style={{ fontWeight: '700' }}>{row.enroll}</td>
-                                  <td>
-                                    <input 
-                                      type="text" 
-                                      className="admin-input" 
-                                      value={row.noDep} 
-                                      style={{ width: '100px', textAlign: 'center' }} 
-                                      onChange={(e) => {
-                                        const newVal = {...livingPolicy};
-                                        newVal.sections[idx].data[rIdx].noDep = e.target.value;
-                                        setLivingPolicy(newVal);
-                                      }}
-                                    />
-                                  </td>
-                                  <td>
-                                    <input 
-                                      type="text" 
-                                      className="admin-input" 
-                                      value={row.withDep} 
-                                      style={{ width: '100px', textAlign: 'center' }} 
-                                      onChange={(e) => {
-                                        const newVal = {...livingPolicy};
-                                        newVal.sections[idx].data[rIdx].withDep = e.target.value;
-                                        setLivingPolicy(newVal);
-                                      }}
-                                    />
-                                  </td>
-                                  <td style={{ fontSize: '11px', color: '#64748b' }}>{row.notes}</td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      </div>
-                    ))}
-                    <div style={{ padding: '16px', background: '#fff9f2', borderRadius: '8px', border: '1px solid #fde6d2', display: 'flex', alignItems: 'center', gap: '20px' }}>
-                      <div style={{ fontSize: '11px', fontWeight: '700', color: '#854d0e' }}>EFFECTIVE DATE:</div>
-                      <input 
-                        type="text" 
-                        className="admin-input" 
-                        value={livingPolicy.effectiveDate} 
-                        style={{ width: '140px' }} 
-                        onChange={(e) => setLivingPolicy({...livingPolicy, effectiveDate: e.target.value})}
-                      />
-                      <div style={{ fontSize: '11px', color: '#b45309' }}>Same semester — same rate applies to all students regardless of application date within that semester.</div>
-                    </div>
-                  </div>
-                )}
-
-                {policyTab === 'travel' && (
-                  <div className="fade-in">
-                    <div style={{ padding: '20px', background: '#eff6ff', border: '1px solid #dbeafe', borderRadius: '8px', marginBottom: '24px', fontSize: '12px', color: '#1e40af', lineHeight: '1.6' }}>
-                      Travel bursaries are reimbursement-only — no advance payments. Students must submit receipts within 1 month of travel completing. Students studying &gt;200km from home and not receiving SFA are eligible for the Travel Bursary.
+                      )}
                     </div>
 
-                    {travelPolicy.map((section, idx) => (
-                      <div key={idx} style={{ marginBottom: '32px' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                          <h4 style={{ fontSize: '13px', fontWeight: '800', color: '#1e293b' }}>{section.title}</h4>
-                          <span className="admin-badge badge-approved" style={{ fontSize: '9px', opacity: 0.8, color: '#166534', background: '#dcfce7' }}>{section.tag}</span>
-                        </div>
-                        <div className="admin-table-wrap" style={{ border: 'none', boxShadow: 'none' }}>
-                          <table className="admin-table">
-                            <thead>
-                              <tr style={{ background: '#f8fafc' }}>
-                                <th style={{ width: '280px' }}>PARAMETER</th>
-                                {(section.data[0] as any).value !== undefined ? <th>VALUE</th> : <><th>NO DEPENDENTS ($)</th><th>WITH DEPENDENTS ($)</th></>}
-                                <th>NOTES</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {section.data.map((row, rIdx) => (
-                                <tr key={rIdx}>
-                                  <td style={{ fontWeight: '700' }}>{row.param}</td>
-                                  {(row as any).value !== undefined ? (
-                                    <td>
-                                      <input 
-                                        type="text" 
-                                        className="admin-input" 
-                                        value={(row as any).value} 
-                                        style={{ width: '100px', textAlign: 'center' }} 
-                                        onChange={(e) => {
-                                          const newVal = [...travelPolicy];
-                                          (newVal[idx].data[rIdx] as any).value = e.target.value;
-                                          setTravelPolicy(newVal);
-                                        }}
-                                      />
-                                    </td>
-                                  ) : (
-                                    <>
-                                      <td>
-                                        <input 
-                                          type="text" 
-                                          className="admin-input" 
-                                          value={(row as any).noDep} 
-                                          style={{ width: '100px', textAlign: 'center' }} 
-                                          onChange={(e) => {
-                                            const newVal = [...travelPolicy];
-                                            (newVal[idx].data[rIdx] as any).noDep = e.target.value;
-                                            setTravelPolicy(newVal);
-                                          }}
-                                        />
-                                      </td>
-                                      <td>
-                                        {(row as any).withDep !== undefined ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                      {[
+                        { id: 'application_deadlines', title: 'Application Deadlines', desc: 'Define semester start/end and application cut-off dates.' },
+                        { id: 'psssp_tuition', title: 'PSSSP — Tuition Bursary', desc: 'Maximum tuition coverage per semester for PSSSP students.' },
+                        { id: 'psssp_living', title: 'PSSSP — Living Allowance', desc: 'Monthly living allowance rates based on enrollment and dependents.' },
+                        { id: 'psssp_travel', title: 'PSSSP — Travel Bursary', desc: 'Limits and eligibility for student travel reimbursements.' },
+                        { id: 'psssp_graduation_travel', title: 'PSSSP — Graduation Travel', desc: 'Assistance for students traveling to attend graduation ceremonies.' },
+                        { id: 'ucepp_tuition', title: 'UCEPP — Tuition Bursary', desc: 'Maximum tuition coverage per semester for UCEPP students.' },
+                        { id: 'ucepp_living', title: 'UCEPP — Living Allowance', desc: 'Monthly living allowance rates for UCEPP students.' },
+                        { id: 'dggr_tuition', title: 'DGGR — Tuition Bursary', desc: 'Tuition rates for DGGR-funded programs.' },
+                        { id: 'dggr_extra_tuition', title: 'DGGR — Extra Tuition Bursary', desc: 'Top-up bursary for tuition exceeding standard limits.' },
+                        { id: 'dggr_living', title: 'DGGR — Living Allowance', desc: 'Monthly living allowance rates for DGGR students.' },
+                        { id: 'dggr_practicum_award', title: 'DGGR — Practicum Award', desc: 'Awards for placements and practicum completions.' },
+                        { id: 'dggr_grad_bursary', title: 'DGGR — Graduation Bursary', desc: 'One-time bursaries for completing degrees or certificates.' },
+                        { id: 'dggr_academic_scholarship', title: 'DGGR — Academic Scholarship', desc: 'Achievement awards based on GPA thresholds.' },
+                        { id: 'dggr_hardship', title: 'DGGR — Hardship Bursary', desc: 'Emergency funding caps for students in financial distress.' },
+                        { id: 'eligibility_rules', title: 'Eligibility Rules', desc: 'Global rules for program length and minimum course loads.' },
+                        { id: 'misconduct_rules', title: 'Misconduct Rules', desc: 'Suspension rules for academic or financial misconduct.' },
+                        { id: 'payment_schedule', title: 'Payment Schedule', desc: 'Processing times and standard payment dates.' }
+                      ].map((section) => {
+                        const items = policySettings[section.id] || [];
+                        const isExpanded = expandedSections[section.id];
+                        const hasChanges = isDirty[section.id];
+                        const lastUpdated = items[0]?.last_updated_at;
+                        const updatedBy = items[0]?.last_updated_by_name;
+
+                        return (
+                          <div key={section.id} className="admin-chart-card" style={{ padding: '0', overflow: 'hidden', border: hasChanges ? '2px solid #f97316' : '1px solid #e2e8f0' }}>
+                            <div 
+                              onClick={() => setExpandedSections({ ...expandedSections, [section.id]: !isExpanded })}
+                              style={{ padding: '20px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', background: isExpanded ? '#f8fafc' : 'white' }}
+                            >
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                <h3 style={{ fontSize: '15px', fontWeight: '800', color: '#1e293b', margin: '0' }}>{section.title}</h3>
+                                {hasChanges && <span style={{ background: '#fff7ed', color: '#c2410c', fontSize: '10px', fontWeight: '800', padding: '2px 8px', borderRadius: '4px', border: '1px solid #fdba74' }}>UNSAVED</span>}
+                              </div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                                {(lastUpdated && !isExpanded) && (
+                                  <span style={{ fontSize: '11px', color: '#94a3b8' }}>
+                                    Last updated {new Date(lastUpdated).toLocaleDateString()}
+                                  </span>
+                                )}
+                                <span style={{ fontSize: '18px', color: '#64748b' }}>{isExpanded ? '−' : '+'}</span>
+                              </div>
+                            </div>
+
+                            {isExpanded && (
+                              <div style={{ padding: '0 24px 24px' }}>
+                                <p style={{ fontSize: '13px', color: '#64748b', marginBottom: '24px', marginTop: '-8px' }}>{section.desc}</p>
+                                
+                                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(400px, 1fr))', gap: '20px' }}>
+                                    {items.length > 0 ? items.map((field) => (
+                                      <div key={field.id} style={{ background: '#f8fafc', padding: '16px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                                        <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', marginBottom: '8px' }}>
+                                          {field.field_label}
+                                        </label>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                                           <input 
-                                            type="text" 
+                                            type="number" 
                                             className="admin-input" 
-                                            value={(row as any).withDep} 
-                                            style={{ width: '100px', textAlign: 'center' }} 
+                                            disabled={role !== 'director'}
+                                            value={field.value}
+                                            style={{ flex: '1', fontSize: '16px', fontWeight: '700', padding: '10px 14px' }}
                                             onChange={(e) => {
-                                              const newVal = [...travelPolicy];
-                                              (newVal[idx].data[rIdx] as any).withDep = e.target.value;
-                                              setTravelPolicy(newVal);
+                                              const newVal = e.target.value;
+                                              const newSettings = { ...policySettings };
+                                              const itemIdx = newSettings[section.id].findIndex(i => i.id === field.id);
+                                              newSettings[section.id][itemIdx].value = newVal;
+                                              setPolicySettings(newSettings);
+                                              setIsDirty({ ...isDirty, [section.id]: true });
                                             }}
                                           />
-                                        ) : ''}
-                                      </td>
-                                    </>
-                                  )}
-                                  <td style={{ fontSize: '11px', color: '#64748b' }}>{row.notes}</td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
+                                          <span style={{ minWidth: '40px', fontSize: '14px', fontWeight: '600', color: '#94a3b8' }}>{field.unit}</span>
+                                        </div>
+                                      </div>
+                                    )) : (
+                                      <div style={{ gridColumn: '1 / -1', padding: '40px', textAlign: 'center', background: '#f1f5f9', borderRadius: '12px', border: '1px dashed #cbd5e1' }}>
+                                        <p style={{ margin: 0, fontSize: '13px', color: '#64748b' }}>Policy parameters for this section are being synchronized or have not been defined.</p>
+                                      </div>
+                                    )}
+                                  </div>
 
-                {policyTab === 'onetime' && (
-                  <div className="fade-in">
-                    <div style={{ padding: '20px', background: '#eff6ff', border: '1px solid #dbeafe', borderRadius: '8px', marginBottom: '24px', fontSize: '12px', color: '#1e40af', lineHeight: '1.6' }}>
-                      All one-time DGGR awards are paid within 15 business days of Director approval. Students must apply within the rolling window — no semester deadlines apply except where noted.
-                    </div>
+                                  <div style={{ marginTop: '32px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '24px', borderTop: '1px solid #e2e8f0' }}>
+                                    <div style={{ fontSize: '12px', color: '#94a3b8' }}>
+                                      {lastUpdated ? `Last modified by ${updatedBy || 'System'} on ${new Date(lastUpdated).toLocaleString()}` : 'No previous updates recorded.'}
+                                    </div>
 
-                    {onetimePolicy.map((section, idx) => (
-                      <div key={idx} style={{ marginBottom: '32px' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                          <h4 style={{ fontSize: '11px', fontWeight: '800', color: '#1e293b' }}>{section.title}</h4>
-                          <span className="admin-badge badge-approved" style={{ fontSize: '9px', background: '#fff7ed', color: '#c2410c' }}>{section.tag}</span>
-                        </div>
-                        <div className="admin-table-wrap" style={{ border: 'none', boxShadow: 'none' }}>
-                          <table className="admin-table table-dense">
-                            <thead>
-                              <tr style={{ background: '#f8fafc' }}>
-                                <th style={{ width: '400px' }}>{idx === 2 ? 'AWARD' : idx === 1 ? 'GPA THRESHOLD' : 'CREDENTIAL TYPE'}</th>
-                                <th>AMOUNT ($)</th>
-                                <th>{idx === 2 ? 'TRIGGER / DEADLINE' : 'CLAIM WINDOW'}</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {section.data.map((row, rIdx) => (
-                                <tr key={rIdx}>
-                                  <td style={{ fontWeight: '700' }}>{row.type}</td>
-                                  <td>
-                                    <input 
-                                      type="text" 
-                                      className="admin-input" 
-                                      value={row.amt} 
-                                      style={{ width: '100px', textAlign: 'center' }} 
-                                      onChange={(e) => {
-                                        const newVal = [...onetimePolicy];
-                                        newVal[idx].data[rIdx].amt = e.target.value;
-                                        setOnetimePolicy(newVal);
-                                      }}
-                                    />
-                                  </td>
-                                  <td style={{ fontSize: '11px', color: '#64748b' }}>{row.window}</td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {policyTab === 'deadlines' && (
-                  <div className="fade-in">
-                    <div style={{ padding: '20px' }}>Deadlines content here.</div>
-                  </div>
-                )}
-
-                {policyTab === 'rules' && (
-                  <div className="fade-in">
-                    <div style={{ padding: '20px', background: '#eff6ff', border: '1px solid #dbeafe', borderRadius: '8px', marginBottom: '24px', fontSize: '12px', color: '#1e40af', lineHeight: '1.6' }}>
-                      Eligibility rules are fixed by policy and cannot be changed without a formal policy update approved by the Director. This screen is read-only — contact IT or the system administrator to request a policy change.
-                    </div>
-
-                    <div style={{ marginBottom: '32px' }}>
-                      <h4 style={{ fontSize: '11px', fontWeight: '800', color: '#1e293b', marginBottom: '16px' }}>STREAM ELIGIBILITY</h4>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                        {[
-                          { stream: 'C-DFN PSSSP', color: '#dcfce7', label: 'Students with Indian Act Status affiliated with the Deline First Nation, in a non-upgrading post-secondary program.', restrictions: 'Not available to students receiving GNWT SFA or already receiving the same funding from another organization.' },
-                          { stream: 'C-DFN UCEPP', color: '#e0e7ff', label: 'Same as PSSSP but for upgrading and university entrance preparation programs only.', restrictions: 'Same SFA and other-organization restrictions as PSSSP.' },
-                          { stream: 'DGGR', color: '#fff7ed', label: 'Registered Deline Beneficiaries in any approved program.', restrictions: 'SFA status has no effect. Not available to students already receiving funding from another land claim agreement.' }
-                        ].map((item, i) => (
-                          <div key={i} style={{ display: 'grid', gridTemplateColumns: '140px 1fr 1fr', gap: '24px', padding: '16px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0', alignItems: 'center' }}>
-                            <span className="admin-badge" style={{ background: item.color, textAlign: 'center' }}>{item.stream}</span>
-                            <div style={{ fontSize: '12px', lineHeight: '1.4' }}>{item.label}</div>
-                            <div style={{ fontSize: '11px', color: '#64748b', fontStyle: 'italic', borderLeft: '1px solid #e2e8f0', paddingLeft: '24px' }}><strong>KEY RESTRICTIONS:</strong><br />{item.restrictions}</div>
+                                    {/* Hide Save/Reset buttons for SSW (role !== 'director') */}
+                                    {role === 'director' && (
+                                      <div style={{ display: 'flex', gap: '12px' }}>
+                                        <button 
+                                          className="admin-badge badge-review" 
+                                          style={{ padding: '10px 20px', fontWeight: '700', background: 'white', border: '1px solid #e2e8f0', color: '#64748b', cursor: 'pointer' }}
+                                          onClick={() => {
+                                            if (window.confirm("This will reset all values in this section to the original policy defaults. Are you sure?")) {
+                                              fetchPolicySettings();
+                                              setIsDirty({ ...isDirty, [section.id]: false });
+                                            }
+                                          }}
+                                        >
+                                          Reset to Defaults
+                                        </button>
+                                        <button 
+                                          className="admin-badge badge-approved" 
+                                          disabled={!hasChanges}
+                                          style={{ padding: '10px 20px', fontWeight: '700', border: 'none', cursor: hasChanges ? 'pointer' : 'not-allowed', opacity: hasChanges ? 1 : 0.5 }}
+                                          onClick={async () => {
+                                            if (window.confirm("Are you sure you want to update these policy values? This will affect all future funding calculations.")) {
+                                              try {
+                                                await API.updatePolicySetting('bulk', { settings: items });
+                                                setIsDirty({ ...isDirty, [section.id]: false });
+                                                fetchPolicySettings();
+                                                alert("Section updated successfully.");
+                                              } catch (err: any) {
+                                                alert(err.message || "Failed to update section.");
+                                              }
+                                            }
+                                          }}
+                                        >
+                                          Save Section
+                                        </button>
+                                      </div>
+                                    )}
+                                  </div>
+                              </div>
+                            )}
                           </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div style={{ marginBottom: '32px' }}>
-                      <h4 style={{ fontSize: '11px', fontWeight: '800', color: '#1e293b', marginBottom: '16px' }}>STACKING RULES</h4>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                        <div style={{ display: 'flex', gap: '12px', padding: '16px', background: '#f0fdf4', border: '1px solid #bbfc1a', borderRadius: '8px', color: '#166534', fontSize: '12px' }}>
-                          <span style={{ fontSize: '14px' }}>✔️</span>
-                          <span><strong>C-DFN + DGGR stacking is permitted.</strong> A student can receive both C-DFN (PSSSP or UCEPP) and DGGR funding simultaneously if they qualify for both. DGGR supplements C-DFN — it does not replace it.</span>
-                        </div>
-                        {[
-                          'SFA blocks C-DFN. Students receiving GNWT Student Financial Assistance are not eligible for C-DFN tuition or living allowances (DGGR is unaffected).',
-                          'Other land claim agreement blocks DGGR. Students already receiving equivalent funding from another land claim agreement are not eligible for DGGR bursaries.',
-                          'Other organization blocks C-DFN. Students already receiving C-DFN program funding from another organization are not eligible for C-DFN streams through DGG.'
-                        ].map((rule, i) => (
-                          <div key={i} style={{ display: 'flex', gap: '12px', padding: '16px', background: '#fff1f1', border: '1px solid #fecaca', borderRadius: '8px', color: '#991b1b', fontSize: '12px' }}>
-                            <span style={{ fontSize: '14px' }}>❌</span>
-                            <span>{rule}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div style={{ marginBottom: '32px' }}>
-                      <h4 style={{ fontSize: '11px', fontWeight: '800', color: '#1e293b', marginBottom: '16px' }}>APPEALS PROCESS</h4>
-                      <div className="admin-table-wrap" style={{ border: 'none', boxShadow: 'none' }}>
-                        <table className="admin-table table-dense">
-                          <thead>
-                            <tr style={{ background: '#f8fafc' }}>
-                              <th>STEP</th>
-                              <th>ESCALATION PATH</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            <tr><td style={{ fontWeight: '700' }}>Step 1</td><td style={{ fontSize: '12px' }}>Appeal to Director of Education.</td></tr>
-                            <tr><td style={{ fontWeight: '700' }}>Step 2 — DGGR</td><td style={{ fontSize: '12px' }}>If unresolved, escalates to senior DGGR official.</td></tr>
-                            <tr><td style={{ fontWeight: '700' }}>Step 2 — C-DFN</td><td style={{ fontSize: '12px' }}>If unresolved, escalates to CEO.</td></tr>
-                            <tr><td style={{ fontWeight: '700' }}>Record Keeping</td><td style={{ fontSize: '12px' }}>Full appeal history must be recorded in the system for every appeal at every step.</td></tr>
-                          </tbody>
-                        </table>
-                      </div>
+                        );
+                      })}
                     </div>
                   </div>
                 )}
 
-                {policyTab === 'history' && (
-                  <div className="fade-in">
-                    <div style={{ padding: '20px', background: '#eff6ff', border: '1px solid #dbeafe', borderRadius: '8px', marginBottom: '24px', fontSize: '12px', color: '#1e40af', lineHeight: '1.6' }}>
-                      All policy changes are logged automatically with the user, timestamp, and previous value. Changes are immutable — they cannot be deleted. Each change record also records the effective date.
-                    </div>
-                    <h4 style={{ fontSize: '11px', fontWeight: '800', color: '#1e293b', marginBottom: '16px' }}>POLICY CHANGE LOG</h4>
-                    <div className="admin-table-wrap" style={{ border: 'none', boxShadow: 'none' }}>
-                      <table className="admin-table table-dense">
-                        <thead>
-                          <tr style={{ background: '#f8fafc' }}>
-                            <th>TIMESTAMP</th>
-                            <th>USER</th>
-                            <th>FIELD CHANGED</th>
-                            <th>OLD VALUE</th>
-                            <th>NEW VALUE</th>
-                            <th>EFFECTIVE DATE</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {policyHistory.map((log, i) => (
-                            <tr key={i}>
-                              <td style={{ fontSize: '10px', color: '#64748b' }}>{new Date(log.time).toLocaleString()}</td>
-                              <td style={{ fontSize: '11px' }}>{log.user}</td>
-                              <td style={{ fontSize: '11px', fontWeight: '700' }}>{log.field}</td>
-                              <td style={{ fontSize: '11px' }}>{log.old}</td>
-                              <td style={{ fontSize: '11px', color: '#1a6b3a', fontWeight: '700' }}>{log.new}</td>
-                              <td style={{ fontSize: '11px' }}>{log.effective}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '24px' }}>
-                <button 
-                  className="admin-input" 
-                  style={{ width: 'auto', background: 'var(--admin-accent)', color: '#111', border: 'none', fontWeight: '800', padding: '10px 24px', opacity: isPolicySaving ? 0.5 : 1 }}
-                  onClick={handleSavePolicy}
-                  disabled={isPolicySaving}
-                >
-                  {isPolicySaving ? 'SAVING...' : 'SAVE POLICY CHANGES'}
-                </button>
-                <button className="admin-input" style={{ width: 'auto', background: '#fff', border: '1px solid #e2e8f0', fontWeight: '600', padding: '10px 24px' }}>
-                  CANCEL
-                </button>
-              </div>
-            </div>
-        )}
-
-          {currentView === 'reports' && (
+           {currentView === 'reports' && (
             <div className="fade-in">
               {(!backendStats && isLoading) ? (
                 <div style={{ padding: '60px', textAlign: 'center', background: '#fff', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
                   <div className="admin-loading-spinner" style={{ margin: '0 auto 20px' }}></div>
-                  <div style={{ color: '#64748b', fontWeight: '600' }}>Aggregating real-time database records...</div>
-                  <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '4px' }}>Connecting to LIVE reporting engine</div>
+                  <div style={{ color: '#64748b', fontWeight: '600' }}>Aggregating database records...</div>
                 </div>
               ) : (
                 <React.Fragment>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '24px' }}>
-                    <div>
-                      <h2 style={{ fontSize: '20px', fontWeight: '800', color: '#111' }}>REPORTING OVERVIEW — FISCAL {fiscalYear}</h2>
-                      <div style={{ fontSize: '11px', color: '#64748b', marginTop: '4px' }}>
-                        {new Date().toLocaleDateString('en-CA', { month: 'long', day: 'numeric', year: 'numeric' })} · All active funding streams
-                      </div>
-                    </div>
-                    <div style={{ display: 'flex', gap: '8px' }}>
-                      <button className="admin-input" style={{ width: 'auto', background: '#fff', border: '1px solid #e2e8f0', fontSize: '11px', fontWeight: '800', padding: '8px 16px', color: '#1e293b' }}>📥 CSV</button>
-                      <button className="admin-input" style={{ width: 'auto', background: 'var(--admin-accent)', color: '#111', border: 'none', fontSize: '11px', fontWeight: '800', padding: '8px 16px' }}>📊 EXCEL</button>
-                    </div>
-                  </div>
-
-              {/* Sub Tabs */}
-              <div className="policy-tabs" style={{ marginBottom: '24px', background: '#f8fafc', padding: '0 20px', borderRadius: '8px' }}>
-                <div className={`policy-tab ${reportTab === 'overview' ? 'active' : ''}`} onClick={() => setReportTab('overview')}>OVERVIEW</div>
-                <div className={`policy-tab ${reportTab === 'quarterly' ? 'active' : ''}`} onClick={() => setReportTab('quarterly')}>QUARTERLY (DGGR)</div>
-                <div className={`policy-tab ${reportTab === 'annual' ? 'active' : ''}`} onClick={() => setReportTab('annual')}>ANNUAL (DGGR)</div>
-                <div className={`policy-tab ${reportTab === 'federal' ? 'active' : ''}`} onClick={() => setReportTab('federal')}>FEDERAL — C-DFN</div>
-                <div className={`policy-tab ${reportTab === 'adhoc' ? 'active' : ''}`} onClick={() => setReportTab('adhoc')}>AD-HOC</div>
-                <div className={`policy-tab ${reportTab === 'scheduled' ? 'active' : ''}`} onClick={() => setReportTab('scheduled')}>SCHEDULED</div>
-              </div>
-
-              {/* Filters */}
-              <div className="admin-filters" style={{ padding: '16px', background: '#fff', borderRadius: '12px', border: '1px solid #e2e8f0', marginBottom: '24px', display: 'grid', gridTemplateColumns: 'repeat(5, 1fr) 1fr auto', gap: '12px', alignItems: 'end' }}>
-                <div>
-                  <label className="admin-kpi-label" style={{ fontSize: '9px', marginBottom: '4px', display: 'block' }}>FISCAL YEAR</label>
-                  <select className="admin-input" style={{ fontSize: '12px' }}><option>{fiscalYear}</option></select>
-                </div>
-                <div>
-                  <label className="admin-kpi-label" style={{ fontSize: '9px', marginBottom: '4px', display: 'block' }}>QUARTER</label>
-                  <select className="admin-input" style={{ fontSize: '12px' }}><option>All Quarters</option></select>
-                </div>
-                <div>
-                  <label className="admin-kpi-label" style={{ fontSize: '9px', marginBottom: '4px', display: 'block' }}>STREAM</label>
-                  <select className="admin-input" style={{ fontSize: '12px' }}><option>All Streams</option></select>
-                </div>
-                <div>
-                  <label className="admin-kpi-label" style={{ fontSize: '9px', marginBottom: '4px', display: 'block' }}>AWARD TYPE</label>
-                  <select className="admin-input" style={{ fontSize: '12px' }}><option>All Award Types</option></select>
-                </div>
-                <div>
-                  <label className="admin-kpi-label" style={{ fontSize: '9px', marginBottom: '4px', display: 'block' }}>SEMESTER</label>
-                  <select className="admin-input" style={{ fontSize: '12px' }}><option>All Semesters</option></select>
-                </div>
-                <div>
-                  <label className="admin-kpi-label" style={{ fontSize: '9px', marginBottom: '4px', display: 'block' }}>STUDENT</label>
-                  <input type="text" className="admin-input" placeholder="Name or Beneficiary #" style={{ fontSize: '12px' }} />
-                </div>
-                <button className="admin-input" style={{ width: 'auto', background: 'var(--admin-accent)', color: '#111', border: 'none', fontWeight: '800', height: '38px', padding: '0 24px' }}>APPLY FILTERS</button>
-              </div>
-
-              {/* KPI Cards Row */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr) 200px', gap: '16px', marginBottom: '24px' }}>
-                {[
-                  { label: 'TOTAL DISBURSED', val: `$${(stats.approvedAmount / 1000).toFixed(1)}k`, sub: 'Real-time authorized', color: '#111' },
-                  { label: 'STUDENTS FUNDED', val: stats.activeStudents, sub: 'Active in FY', color: '#111' },
-                  { label: 'C-DFN TOTAL', val: `$${((backendStats?.stream_totals?.pssp || 0) / 1000).toFixed(1)}k`, sub: 'authorized', color: '#1a6b3a' },
-                  { label: 'DGGR TOTAL', val: `$${((backendStats?.stream_totals?.dggr || 0) / 1000).toFixed(1)}k`, sub: 'authorized', color: '#3a4aaa' },
-                  { label: 'UCEPP TOTAL', val: `$${((backendStats?.stream_totals?.ucepp || 0) / 1000).toFixed(1)}k`, sub: 'authorized', color: '#cc3333' },
-                ].map((kpi, i) => (
-                  <div key={i} className="admin-kpi-card" style={{ padding: '16px', borderLeft: i === 0 ? '4px solid #111' : 'none' }}>
-                    <div className="admin-kpi-label" style={{ fontSize: '9px' }}>{kpi.label}</div>
-                    <div className="admin-kpi-val" style={{ fontSize: '20px', margin: '4px 0', color: kpi.color }}>{kpi.val}</div>
-                    <div style={{ fontSize: '10px', color: '#64748b', fontWeight: '700' }}>{kpi.sub}</div>
-                  </div>
-                ))}
-                <div className="admin-kpi-card" style={{ padding: '12px', borderLeft: '4px solid #cc3333', background: '#fff5f5' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                    <div className="admin-kpi-val" style={{ fontSize: '24px', color: '#cc3333' }}>{(backendStats?.flags_count || 0)}</div>
-                    <div className="admin-badge" style={{ background: '#cc3333', color: '#fff', fontSize: '8px' }}>URGENT</div>
-                  </div>
-                  <div className="admin-kpi-label" style={{ fontSize: '9px', marginTop: '4px' }}>OVERRIDE FLAGS</div>
-                  <div style={{ fontSize: '9px', color: '#64748b' }}>Awaiting resolution</div>
-                </div>
-              </div>
-
-              {/* Main Report Dashboard Content */}
-              {/* Insights Row - Standardized & Visible (Relocated from sidebar) */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px', marginBottom: '32px' }}>
-                {/* Stream Split Card */}
-                <div className="admin-chart-card" style={{ marginBottom: 0, padding: '24px' }}>
-                  <h3 style={{ fontSize: '11px', fontWeight: '800', color: '#64748b', marginBottom: '20px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>STREAM SPLIT</h3>
-                  
-                  <div className="admin-stat-row">
-                    <div className="admin-stat-head">
-                      <span className="admin-stat-label">C-DFN (PSSSP / Bursary)</span>
-                      <span className="admin-stat-val">{(backendStats?.stream_split?.pssp || 0)} students</span>
-                    </div>
-                    <div className="admin-progress-bg">
-                      <div className="admin-progress-fill" style={{ width: `${(backendStats?.stream_split?.pssp_percent || 0)}%`, background: '#1a6b3a' }}></div>
-                    </div>
-                  </div>
-
-                  <div className="admin-stat-row">
-                    <div className="admin-stat-head">
-                      <span className="admin-stat-label">DGGR</span>
-                      <span className="admin-stat-val">{(backendStats?.stream_split?.dggr || 0)} students</span>
-                    </div>
-                    <div className="admin-progress-bg">
-                      <div className="admin-progress-fill" style={{ width: `${(backendStats?.stream_split?.dggr_percent || 0)}%`, background: '#1e293b' }}></div>
-                    </div>
-                  </div>
-
-                  <div className="admin-stat-row" style={{ marginBottom: 0 }}>
-                    <div className="admin-stat-head">
-                      <span className="admin-stat-label">UCEPP (Upgrading)</span>
-                      <span className="admin-stat-val">{(backendStats?.stream_split?.ucepp || 0)} students</span>
-                    </div>
-                    <div className="admin-progress-bg">
-                      <div className="admin-progress-fill" style={{ width: `${(backendStats?.stream_split?.ucepp_percent || 0)}%`, background: '#e5a662' }}></div>
-                    </div>
-                  </div>
-
-                  <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: '16px', marginTop: '16px', display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px' }}>
-                    <div style={{ fontSize: '11px' }}><span style={{ color: '#64748b' }}>C-DFN:</span> <strong>{(backendStats?.stream_split?.pssp || 0)}</strong></div>
-                    <div style={{ fontSize: '11px' }}><span style={{ color: '#64748b' }}>DGGR:</span> <strong>{(backendStats?.stream_split?.dggr || 0)}</strong></div>
-                    <div style={{ fontSize: '11px' }}><span style={{ color: '#64748b' }}>UCEPP:</span> <strong>{(backendStats?.stream_split?.ucepp || 0)}</strong></div>
-                  </div>
-                </div>
-
-                {/* Application Status Card */}
-                <div className="admin-chart-card" style={{ marginBottom: 0, padding: '24px' }}>
-                  <h3 style={{ fontSize: '11px', fontWeight: '800', color: '#64748b', marginBottom: '20px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>APPLICATION STATUS</h3>
-                  
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                        <span className="admin-badge badge-approved" style={{ minWidth: '80px', textAlign: 'center' }}>APPROVED</span>
-                        <span style={{ fontSize: '13px', fontWeight: '600' }}>Ready for payment</span>
-                      </div>
-                      <span style={{ fontSize: '14px', fontWeight: '800' }}>{(backendStats?.submissions_by_status?.accepted || 0)}</span>
-                    </div>
-                    
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                        <span className="admin-badge badge-review" style={{ minWidth: '80px', textAlign: 'center' }}>REVIEW</span>
-                        <span style={{ fontSize: '13px', fontWeight: '600' }}>In process</span>
-                      </div>
-                      <span style={{ fontSize: '14px', fontWeight: '800' }}>{(backendStats?.submissions_by_status?.pending || 0) + (backendStats?.submissions_by_status?.reviewed || 0)}</span>
-                    </div>
-
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                        <span style={{ fontSize: '18px' }}>📜</span>
-                        <span style={{ fontSize: '13px', fontWeight: '600', marginLeft: '4px' }}>Waiting Form B</span>
-                      </div>
-                      <span style={{ fontSize: '14px', fontWeight: '800' }}>{(backendStats?.form_b_stats?.awaiting || 0)}</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* disbursement Charts & Detail Summary - Full Width */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' }}>
-                  <div className="admin-chart-card">
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                      <h3 style={{ fontSize: '12px', fontWeight: '800', textTransform: 'uppercase' }}>DISBURSEMENTS BY QUARTER</h3>
-                      <div style={{ fontSize: '10px', color: '#64748b' }}>Real-time aggregated</div>
-                    </div>
-                    <div className="stacked-bar-chart" style={{ height: '220px', position: 'relative', display: 'flex', paddingBottom: '30px', borderBottom: '1px solid #e2e8f0', gap: '40px', alignItems: 'flex-end', justifyContent: 'space-around' }}>
-                      {(() => {
-                        const quarters = [
-                          { label: 'Q1', months: [3, 4, 5], meta: 'Apr-Jun' },
-                          { label: 'Q2', months: [6, 7, 8], meta: 'Jul-Sep' },
-                          { label: 'Q3', months: [9, 10, 11], meta: 'Oct-Dec' },
-                          { label: 'Q4', months: [0, 1, 2], meta: 'Jan-Mar' },
-                        ];
-                        
-                        return quarters.map((q, i) => {
-                          const qApps = applications.filter(app => {
-                            const date = new Date(app.submitted_at || app.date);
-                            return q.months.includes(date.getMonth()) && app.status === 'accepted';
-                          });
-                          
-                          const totalAmt = qApps.reduce((sum, app) => sum + parseFloat(app.amount || 0), 0);
-                          const totalK = totalAmt > 0 ? (totalAmt / 1000).toFixed(1) + 'k' : '$0';
-                          
-                          // Precise Proportions from submissions
-                          const streamCounts = {
-                            pssp: qApps.filter(a => (a.form_type || '').includes('FormA') || (a.form__title || '').includes('FormA')).length,
-                            dggr: qApps.filter(a => (a.form_type || '').includes('Top-Up') || (a.form__title || '').includes('Top-Up')).length,
-                            ucepp: qApps.filter(a => (a.form_type || '').includes('UCEPP') || (a.form__title || '').includes('UCEPP')).length
-                          };
-                          const totalQApps = qApps.length || 1;
-                          
-                          const h1 = (streamCounts.pssp / totalQApps * 100) + '%';
-                          const h2 = (streamCounts.dggr / totalQApps * 100) + '%';
-                          const h3 = (streamCounts.ucepp / totalQApps * 100) + '%';
-                          
-                          return (
-                            <div key={i} style={{ flex: 1, height: '100%', position: 'relative', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', alignItems: 'center' }}>
-                              <div style={{ position: 'absolute', top: '-25px', fontSize: '11px', fontWeight: '800' }}>{totalK}</div>
-                              <div style={{ width: '100%', maxWidth: '40px', display: 'flex', flexDirection: 'column', gap: '1px' }}>
-                                <div style={{ height: h1, background: '#1a6b3a', borderRadius: '4px 4px 0 0' }}></div>
-                                <div style={{ height: h2, background: '#1e293b' }}></div>
-                                <div style={{ height: h3, background: 'var(--admin-accent)' }}></div>
-                              </div>
-                              <div style={{ position: 'absolute', bottom: '-45px', textAlign: 'center' }}>
-                                <div style={{ fontSize: '11px', fontWeight: '800' }}>{q.label}</div>
-                                <div style={{ fontSize: '9px', color: '#64748b' }}>{q.meta}</div>
-                              </div>
-                            </div>
-                          );
-                        });
-                      })()}
-                    </div>
-                    <div style={{ display: 'flex', gap: '20px', marginTop: '55px', justifyContent: 'center' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '10px' }}>
-                        <div style={{ width: '10px', height: '10px', background: '#1a6b3a', borderRadius: '2px' }}></div> C-DFN
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '10px' }}>
-                        <div style={{ width: '10px', height: '10px', background: '#1e293b', borderRadius: '2px' }}></div> DGGR
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '10px' }}>
-                        <div style={{ width: '10px', height: '10px', background: 'var(--admin-accent)', borderRadius: '2px' }}></div> UCEPP
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="admin-chart-card">
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                      <h3 style={{ fontSize: '12px', fontWeight: '800', textTransform: 'uppercase' }}>DISBURSEMENTS BY AWARD TYPE</h3>
-                      <div style={{ fontSize: '10px', color: '#64748b' }}>Real-time distribution</div>
-                    </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                      {(() => {
-                        const types = [
-                          { label: 'Living Allow.', count: applications.filter(a => (a.form__title || '').includes('FormA') || (a.form__title || '').includes('FormC')).length, color: '#1a6b3a' },
-                          { label: 'Travel', count: applications.filter(a => (a.form__title || '').includes('FormE')).length, color: '#7c4d12' },
-                          { label: 'Scholarship', count: applications.filter(a => (a.form__title || '').includes('Scholarship')).length, color: 'var(--admin-accent)' },
-                          { label: 'Hardship', count: applications.filter(a => (a.form__title || '').includes('Hardship')).length, color: '#991b1b' },
-                        ];
-                        const maxCount = Math.max(...types.map(t => t.count), 1);
-                        
-                        return types.map((row, i) => (
-                          <div key={i} style={{ display: 'grid', gridTemplateColumns: '100px 1fr 100px', gap: '16px', alignItems: 'center' }}>
-                            <div style={{ fontSize: '11px', fontWeight: '600', color: '#64748b' }}>{row.label}</div>
-                            <div style={{ height: '20px', background: '#f1f5f9', borderRadius: '4px', position: 'relative', overflow: 'hidden' }}>
-                              <div style={{ height: '100%', width: `${(row.count / maxCount) * 100}%`, background: row.color, borderRadius: '4px' }}></div>
-                            </div>
-                            <div style={{ fontSize: '12px', fontWeight: '800', textAlign: 'right' }}>{row.count} apps</div>
-                          </div>
-                        ));
-                      })()}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Summary Table - Full Width */}
-                <div className="admin-chart-card" style={{ padding: '0' }}>
-                  <div style={{ padding: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #e2e8f0' }}>
-                    <h3 style={{ fontSize: '12px', fontWeight: '800' }}>ANNUAL SUMMARY RECORD</h3>
-                    <div style={{ fontSize: '10px', color: '#64748b' }}>{applications.length} records processed</div>
-                  </div>
-                  <div className="admin-table-wrap" style={{ border: 'none', boxShadow: 'none' }}>
-                    <table className="admin-table table-dense">
-                      <thead>
-                        <tr style={{ background: '#f8fafc' }}>
-                          <th>STUDENT</th>
-                          <th>ID #</th>
-                          <th>STREAM</th>
-                          <th>INSTITUTION</th>
-                          <th>SEMESTER</th>
-                          <th>STATUS</th>
-                          <th>CALC $</th>
-                          <th>OVERRIDE</th>
-                          <th style={{ textAlign: 'right' }}>FINAL $</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {applications.slice(0, 10).map((row, i) => (
-                          <tr key={i}>
-                            <td><strong>{row.student_details?.full_name || row.student_name || 'Anonymous Student'}</strong></td>
-                            <td><span style={{ fontSize: '10px', color: '#64748b' }}>DGG-{row.id.toString().padStart(5, '0')}</span></td>
-                            <td><span className="admin-badge" style={{ fontSize: '9px', background: (row.form_title || '').includes('FormA') ? '#dcfce7' : '#fff7ed' }}>{(row.form_title || 'Application')}</span></td>
-                            <td style={{ fontSize: '11px' }}>{row.institution || 'N/A'}</td>
-                            <td style={{ fontSize: '11px', color: '#64748b' }}>{row.academic_year || 'FY 25/26'}</td>
-                            <td>{getStatusBadge(row.status)}</td>
-                            <td style={{ fontSize: '11px', color: '#64748b' }}>${parseFloat(row.amount || 0).toLocaleString()}</td>
-                            <td style={{ fontSize: '11px', color: '#64748b' }}>No</td>
-                            <td style={{ textAlign: 'right', fontWeight: '800' }}>${parseFloat(row.amount || 0).toLocaleString()}</td>
-                          </tr>
+                  {/* Two-Level Filter System */}
+                  <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '24px', marginBottom: '32px' }}>
+                    <div style={{ marginBottom: '20px' }}>
+                      <label style={{ fontSize: '11px', fontWeight: '800', color: '#64748b', display: 'block', marginBottom: '12px', textTransform: 'uppercase' }}>Level 1 — Funding Type</label>
+                      <div style={{ display: 'flex', gap: '10px' }}>
+                        {['all', 'UCEPP', 'CDFN', 'DGGR'].map(type => (
+                          <button 
+                            key={type}
+                            onClick={() => setReportFundingType(type.toLowerCase())}
+                            style={{ 
+                              padding: '10px 20px', 
+                              borderRadius: '8px', 
+                              border: 'none',
+                              background: reportFundingType === type.toLowerCase() ? 'var(--admin-accent)' : '#f1f5f9',
+                              color: '#111',
+                              fontWeight: '800',
+                              fontSize: '12px',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            {type}
+                          </button>
                         ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
+                      </div>
+                    </div>
 
-                {/* Bottom Row: Widgets (Relocated from sidebar) */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' }}>
-                  <div className="admin-chart-card" style={{ background: '#fffcf5', border: '1px solid #fef3c7' }}>
-                    <h3 style={{ fontSize: '11px', fontWeight: '700', textTransform: 'uppercase', marginBottom: '16px', color: '#92400e' }}>PENDING REVIEWS</h3>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                      {applications.filter(a => a.status === 'review').slice(0, 3).map((a, i) => (
-                        <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <div>
-                            <div style={{ fontSize: '11px', fontWeight: '800' }}>{a.student_details?.full_name || 'Student'}</div>
-                            <div style={{ fontSize: '9px', color: '#64748b' }}>#{a.id} · {a.form_title}</div>
-                          </div>
-                          <button className="admin-input" onClick={() => handleAppClick(a.id)} style={{ width: 'auto', background: 'var(--admin-accent)', color: '#111', fontSize: '10px', fontWeight: '800', height: '30px', padding: '0 12px' }}>OPEN</button>
-                        </div>
-                      ))}
-                      {applications.filter(a => a.status === 'review').length === 0 && (
-                        <div style={{ fontSize: '11px', color: '#64748b', textAlign: 'center', padding: '10px' }}>No pending reviews.</div>
-                      )}
+                    <div>
+                      <label style={{ fontSize: '11px', fontWeight: '800', color: '#64748b', display: 'block', marginBottom: '12px', textTransform: 'uppercase' }}>Level 2 — Sub-Filters</label>
+                      <div style={{ display: 'flex', gap: '12px' }}>
+                        {[
+                          { id: 'students', label: '# of Students' },
+                          { id: 'paid', label: 'Amount Paid Out' },
+                          { id: 'quarterly', label: 'Quarterly Report' }
+                        ].map(sub => (
+                          <button 
+                            key={sub.id}
+                            onClick={() => setReportSubFilter(sub.id)}
+                            style={{ 
+                              padding: '10px 20px', 
+                              borderRadius: '8px', 
+                              border: reportSubFilter === sub.id ? '2px solid #111' : '1px solid #e2e8f0',
+                              background: 'white',
+                              color: '#111',
+                              fontWeight: '800',
+                              fontSize: '12px',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            {sub.label}
+                          </button>
+                        ))}
+                      </div>
                     </div>
                   </div>
 
-                  <div className="admin-chart-card">
-                    <h3 style={{ fontSize: '11px', fontWeight: '700', textTransform: 'uppercase', marginBottom: '16px', color: '#64748b' }}>UPCOMING DEADLINES</h3>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
-                      {deadlinesPolicy.slice(0, 2).map((d, i) => (
-                        <div key={i}>
-                          <div style={{ fontSize: '10px', fontWeight: '800' }}>{d.sem} Semester</div>
-                          <div style={{ fontSize: '9px', color: '#92400e', fontWeight: '800', marginTop: '4px' }}>DUE {d.deadline.toUpperCase()}</div>
+                  {/* Dashboard Content Area */}
+                  <div className="admin-chart-card" style={{ padding: '32px' }}>
+                    {reportSubFilter === 'students' && (
+                      <div className="fade-in">
+                        <div style={{ marginBottom: '32px' }}>
+                          <h3 style={{ fontSize: '14px', fontWeight: '800', color: '#64748b', textTransform: 'uppercase' }}>Total Students Enrolled</h3>
+                          <div style={{ fontSize: '48px', fontWeight: '900', color: '#111' }}>{backendStats?.total_students || 0}</div>
                         </div>
-                      ))}
-                      {deadlinesPolicy.length === 0 && (
-                        <div style={{ fontSize: '11px', color: '#64748b' }}>No deadlines set.</div>
-                      )}
-                    </div>
+                        <div className="admin-table-wrap" style={{ border: 'none', boxShadow: 'none' }}>
+                          <table className="admin-table">
+                            <thead>
+                              <tr>
+                                <th>REF #</th>
+                                <th>STUDENT NAME</th>
+                                <th>PROGRAM</th>
+                                <th>STATUS</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {applications.map((app: any) => (
+                                <tr key={app.id}>
+                                  <td><span style={{ fontSize: '11px', color: '#64748b' }}>#{app.id}</span></td>
+                                  <td><strong>{app.student_details?.full_name || app.name}</strong></td>
+                                  <td style={{ fontSize: '12px' }}>{app.form_title}</td>
+                                  <td>{getStatusBadge(app.status)}</td>
+                                </tr>
+                              ))}
+                              {applications.length === 0 && (
+                                <tr><td colSpan={4} style={{ textAlign: 'center', padding: '40px', color: '#64748b' }}>No students found for this selection.</td></tr>
+                              )}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    )}
+
+                    {reportSubFilter === 'paid' && (
+                      <div className="fade-in">
+                        <div style={{ marginBottom: '32px' }}>
+                          <h3 style={{ fontSize: '14px', fontWeight: '800', color: '#64748b', textTransform: 'uppercase' }}>Total Amount Paid Out</h3>
+                          <div style={{ fontSize: '48px', fontWeight: '900', color: '#166534' }}>${(backendStats?.total_funding_approved || 0).toLocaleString()}</div>
+                        </div>
+                        <div className="admin-table-wrap" style={{ border: 'none', boxShadow: 'none' }}>
+                          <table className="admin-table">
+                            <thead>
+                              <tr>
+                                <th>REF #</th>
+                                <th>STUDENT</th>
+                                <th>PAYMENT TYPE</th>
+                                <th>AMOUNT</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {(backendStats?.recent_payouts || []).map((p: any) => (
+                                <tr key={p.id}>
+                                  <td><span style={{ fontSize: '11px', color: '#64748b' }}>#{p.id}</span></td>
+                                  <td><strong>{p.user_name}</strong></td>
+                                  <td><span className="admin-badge" style={{ fontSize: '10px' }}>{p.payment_type}</span></td>
+                                  <td style={{ fontWeight: '800' }}>${parseFloat(p.amount).toLocaleString()}</td>
+                                </tr>
+                              ))}
+                              {(backendStats?.recent_payouts || []).length === 0 && (
+                                <tr><td colSpan={4} style={{ textAlign: 'center', padding: '40px', color: '#64748b' }}>No payments recorded for this selection.</td></tr>
+                              )}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    )}
+
+                    {reportSubFilter === 'quarterly' && (
+                      <div className="fade-in">
+                        <h3 style={{ fontSize: '14px', fontWeight: '800', color: '#64748b', textTransform: 'uppercase', marginBottom: '32px' }}>Quarterly Performance</h3>
+                        <div style={{ display: 'flex', alignItems: 'flex-end', gap: '40px', height: '250px', paddingBottom: '40px', borderBottom: '1px solid #e2e8f0', justifyContent: 'space-around' }}>
+                          {backendStats?.quarterly_report?.map((q: any, i: number) => {
+                            const maxAmt = Math.max(...backendStats.quarterly_report.map((x: any) => x.amount), 1);
+                            return (
+                              <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px', height: '100%', justifyContent: 'flex-end' }}>
+                                <div style={{ fontSize: '12px', fontWeight: '800' }}>${(q.amount / 1000).toFixed(1)}k</div>
+                                <div style={{ 
+                                  width: '100%', 
+                                  maxWidth: '50px', 
+                                  height: `${(q.amount / maxAmt) * 100}%`,
+                                  background: 'var(--admin-accent)',
+                                  borderRadius: '6px 6px 0 0'
+                                }}></div>
+                                <div style={{ fontSize: '12px', fontWeight: '800' }}>{q.quarter}</div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
                   </div>
-                </div>
-              </div>
-            </React.Fragment>
+                </React.Fragment>
+              )}
+            </div>
           )}
-        </div>
-      )}
 
           {/* Director Approval Queue View */}
           {currentView === 'director-queue' && (
@@ -1945,7 +1530,6 @@ const StaffDashboard: React.FC = () => {
                 <h2 style={{ fontSize: '20px', fontWeight: '800' }}>APPROVAL QUEUE</h2>
                 <span style={{ fontSize: '11px', color: '#64748b' }}>{applications.filter(a => a.status === 'forwarded').length} awaiting decision</span>
               </div>
-
               <div className="admin-kpi-row" style={{ gridTemplateColumns: 'repeat(4, 1fr)' }}>
                 <div className="admin-kpi-card">
                   <div className="admin-kpi-val">{(backendStats?.submissions_by_status?.forwarded || 0)}</div>
@@ -2311,16 +1895,20 @@ const StaffDashboard: React.FC = () => {
               </div>
             </div>
           )}
-          {/* Payments View Placeholder */}
+          {/* Payments View */}
           {currentView === 'payments' && (
             <div className="fade-in">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-                <h2 style={{ fontSize: '20px', fontWeight: '800' }}>PAYMENT DISBURSEMENT LOG</h2>
+                <div>
+                  <h2 style={{ fontSize: '20px', fontWeight: '800' }}>PAYMENT RECORDS</h2>
+                  <p style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>Records are automatically generated upon application approval.</p>
+                </div>
                 <button 
-                  className="admin-input" 
-                  style={{ width: 'auto', background: 'var(--admin-accent)', color: '#111', border: 'none', fontWeight: '800', padding: '10px 24px' }}
+                  className="admin-badge badge-approved" 
+                  onClick={handleExcelExport}
+                  style={{ border: 'none', cursor: 'pointer', padding: '10px 20px', fontWeight: '800' }}
                 >
-                  + ISSUE NEW PAYMENT
+                  {isExporting ? 'GENERATING...' : 'EXPORT APPROVED PAYMENTS'}
                 </button>
               </div>
               <div className="admin-table-wrap">
@@ -2336,18 +1924,16 @@ const StaffDashboard: React.FC = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {payments.map(p => (
+                    {payments.map((p: any) => (
                       <tr key={p.id}>
                         <td><span style={{ fontSize: '11px', color: '#64748b' }}>PAY-{p.id}</span></td>
                         <td><strong>{p.student_details?.full_name || 'Student'}</strong></td>
-                        <td style={{ fontSize: '12px' }}>{p.category}</td>
+                        <td style={{ fontSize: '12px' }}>{p.payment_type || p.category}</td>
                         <td style={{ fontSize: '13px', fontWeight: '700' }}>${p.amount.toLocaleString()}</td>
                         <td>
-                          <span className={`admin-badge ${p.status === 'released' ? 'badge-approved' : 'badge-pending'}`}>
-                            {p.status.toUpperCase()}
-                          </span>
+                          <span className="admin-badge badge-approved" style={{ fontSize: '9px' }}>APPROVED</span>
                         </td>
-                        <td style={{ fontSize: '12px', color: '#64748b' }}>{new Date(p.created_at).toLocaleDateString()}</td>
+                        <td style={{ fontSize: '12px', color: '#64748b' }}>{new Date(p.date_issued || p.created_at).toLocaleDateString()}</td>
                       </tr>
                     ))}
                     {payments.length === 0 && (
@@ -2355,6 +1941,53 @@ const StaffDashboard: React.FC = () => {
                     )}
                   </tbody>
                 </table>
+              </div>
+            </div>
+          )}
+
+          {/* Finance Email Modal */}
+          {showFinanceModal && (
+            <div className="admin-modal-overlay">
+              <div className="admin-modal-card" style={{ maxWidth: '400px', textAlign: 'center' }}>
+                <div style={{ padding: '32px' }}>
+                  <div style={{ fontSize: '48px', marginBottom: '16px' }}>📧</div>
+                  <h3 style={{ fontSize: '20px', fontWeight: '800', marginBottom: '12px' }}>Send Report to Finance?</h3>
+                  <p style={{ fontSize: '14px', color: '#64748b', marginBottom: '24px', lineHeight: '1.6' }}>
+                    The report has been generated. Send it to the Finance Department email?
+                  </p>
+                  <div style={{ background: '#f8fafc', padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0', marginBottom: '32px', textAlign: 'left' }}>
+                    <div style={{ fontSize: '9px', fontWeight: '800', color: '#94a3b8', textTransform: 'uppercase' }}>Recipient</div>
+                    <div style={{ fontSize: '13px', fontWeight: '700', color: '#1e293b' }}>{financeEmail}</div>
+                  </div>
+                  <div style={{ display: 'flex', gap: '12px' }}>
+                    <button 
+                      className="admin-input" 
+                      style={{ background: 'var(--admin-accent)', color: '#111', fontWeight: '800', border: 'none', cursor: isExporting ? 'not-allowed' : 'pointer' }}
+                      disabled={isExporting}
+                      onClick={async () => {
+                        setIsExporting(true);
+                        try {
+                          await API.dispatchFinanceReport();
+                          setShowFinanceModal(false);
+                          alert(`Report successfully dispatched to ${financeEmail}`);
+                        } catch (err: any) {
+                          alert("Failed to dispatch report. Please check server connection.");
+                        } finally {
+                          setIsExporting(false);
+                        }
+                      }}
+                    >
+                      {isExporting ? 'SENDING...' : 'SEND EMAIL'}
+                    </button>
+                    <button 
+                      className="admin-input" 
+                      style={{ background: 'white', border: '1px solid #e2e8f0', color: '#64748b' }}
+                      onClick={() => setShowFinanceModal(false)}
+                    >
+                      CLOSE
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
           )}
@@ -2378,7 +2011,7 @@ const StaffDashboard: React.FC = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {appeals.map(a => (
+                    {appeals.map((a: any) => (
                       <tr key={a.id} style={{ cursor: 'pointer' }} onClick={() => handleAppClick(a.submission)}>
                         <td><span style={{ fontSize: '11px', color: '#64748b' }}>APP-{a.id}</span></td>
                         <td><strong>{a.student_details?.full_name || 'Student'}</strong></td>

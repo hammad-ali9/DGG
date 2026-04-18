@@ -1,6 +1,7 @@
 import axios from 'axios';
+import { API_BASE_URL } from '../config/api';
 
-const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8001/api';
+const BASE_URL = API_BASE_URL;
 
 // Create a central axios instance
 const apiClient = axios.create({
@@ -180,6 +181,14 @@ class API {
         return apiClient.get('/dashboard/stats/');
     }
 
+    static getReportStats(fundingType: string = 'all') {
+        return apiClient.get('/dashboard/stats/', { params: { funding_type: fundingType } });
+    }
+
+    static dispatchFinanceReport() {
+        return apiClient.post('/payments/dispatch_report/');
+    }
+
     // New API Methods
     static getPayments() {
         return apiClient.get('/payments/');
@@ -197,8 +206,8 @@ class API {
         return apiClient.post('/appeals/', data);
     }
 
-    static requestMoreInfo(id: number, notes: string) {
-        return apiClient.post(`/forms/submissions/${id}/status/`, { 
+    static requestMoreInfo(id: number, notes: string = 'Staff requested more information.') {
+        return apiClient.put(`/forms/submissions/${id}/status/`, { 
             status: 'more_info_required', 
             notes 
         });
@@ -218,8 +227,11 @@ class API {
         return apiClient.get('/policy/all_settings/');
     }
 
-    static updatePolicySetting(category: string, data: any, historyItem?: any) {
-        return apiClient.post(`/policy/${category}/update/`, { data, history_item: historyItem });
+    static updatePolicySetting(category: string, data: any) {
+        if (category === 'bulk') {
+            return apiClient.post('/policy/bulk_update/', data);
+        }
+        return apiClient.post(`/policy/${category}/update/`, data);
     }
 
     // Support for complex wizards

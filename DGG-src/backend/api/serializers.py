@@ -13,7 +13,12 @@ class UserSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = User
-        fields = ('id', 'username', 'first_name', 'last_name', 'email', 'profile')
+        fields = (
+            'id', 'username', 'email', 'full_name', 'role', 'profile',
+            'num_dependents', 'financial_assistance_status', 'enrollment_status',
+            'institution_name', 'program_credential', 'current_semester',
+            'course_load', 'institution_location', 'dob'
+        )
 
 class DocumentSerializer(serializers.ModelSerializer):
     class Meta:
@@ -46,11 +51,17 @@ class PolicyHistorySerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 class PolicySettingSerializer(serializers.ModelSerializer):
-    history = PolicyHistorySerializer(many=True, read_only=True)
+    last_updated_by_name = serializers.SerializerMethodField()
+    
     class Meta:
         model = PolicySetting
-        fields = ('id', 'category', 'data', 'updated_at', 'updated_by', 'history')
-        read_only_fields = ('id', 'updated_at', 'updated_by', 'history')
+        fields = ('id', 'section', 'field_key', 'field_label', 'value', 'unit', 'last_updated_by', 'last_updated_by_name', 'last_updated_at')
+        read_only_fields = ('id', 'last_updated_by', 'last_updated_at')
+
+    def get_last_updated_by_name(self, obj):
+        if obj.last_updated_by:
+            return obj.last_updated_by.get_full_name() or obj.last_updated_by.username
+        return None
 
 class PaymentSerializer(serializers.ModelSerializer):
     class Meta:

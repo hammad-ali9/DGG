@@ -3,7 +3,10 @@ from forms.models import Form, FormSubmission, SubmissionNote
 from forms.serializers import FormSerializer, FormSubmissionSerializer, SubmissionNoteSerializer
 from api.services.form_service import FormService
 from api.utils.responses import api_response
+from api.models import ShareableLink
 from users.permissions import IsAdminUser, IsOwnerOrAdmin
+from django.utils import timezone
+import uuid
 
 class FormController(viewsets.ModelViewSet):
     queryset = Form.objects.all()
@@ -52,7 +55,7 @@ class SubmissionController(viewsets.ModelViewSet):
     serializer_class = FormSubmissionSerializer
     
     def get_permissions(self):
-        if self.action in ['update_status', 'add_note']:
+        if self.action in ['update_status', 'add_note', 'share']:
             return [IsAdminUser()]
         return [IsOwnerOrAdmin()]
 
@@ -77,3 +80,19 @@ class SubmissionController(viewsets.ModelViewSet):
             note = SubmissionNote.objects.create(submission=submission, author=request.user, text=text)
             return api_response(True, SubmissionNoteSerializer(note).data, "Internal note added")
         return api_response(False, None, "Note text is required", status.HTTP_400_BAD_REQUEST)
+
+    @decorators.action(detail=True, methods=['post'], url_path='share')
+    def share(self, request, pk=None):
+        submission = self.get_object()
+        # Create or update shareable link
+        token = uuid.uuid4().hex
+        expires_at = timezone.now() + timezone.timedelta(days=7)
+        
+        link = ShareableLink.objects.create(
+            submission=submission,
+            token=token,
+            expires_at=expires_at,
+            is_active=True
+        )
+        
+        return api_response(True, { "token": token }, "Share link generated")

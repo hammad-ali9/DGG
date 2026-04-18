@@ -1,49 +1,79 @@
 from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
+from rest_framework.response import Response
 from api.utils.responses import api_response
-from api.models import PolicySetting, PolicyHistory
-from api.serializers import PolicySettingSerializer, PolicyHistorySerializer
-from users.permissions import IsAdminUser
+from api.models import PolicySetting, AuditLog
+from api.serializers import PolicySettingSerializer
+from users.permissions import IsAdminUser, IsDirectorUser
 
 class PolicyViewSet(viewsets.ModelViewSet):
-    queryset = PolicySetting.objects.all()
+    queryset = PolicySetting.objects.all().order_by('section', 'field_key')
     serializer_class = PolicySettingSerializer
-    permission_classes = [IsAdminUser]
-    lookup_field = 'category'
 
-    def get_queryset(self):
-        return PolicySetting.objects.all().order_by('category')
+    def get_permissions(self):
+        if self.action in ['update', 'partial_update', 'bulk_update', 'reset_section']:
+            return [permissions.IsAuthenticated(), IsDirectorUser()]
+        return [permissions.IsAuthenticated()]
 
-    @action(detail=True, methods=['post', 'put'], url_path='update')
-    def update_policy(self, request, category=None):
-        policy, created = PolicySetting.objects.get_or_create(category=category)
-        old_data = policy.data
-        new_data = request.data.get('data')
+    def perform_update(self, serializer):
+        instance = serializer.save(last_updated_by=self.request.user)
+        AuditLog.objects.create(
+            action=f"Policy updated: [{instance.section}] — {instance.field_label} changed to {instance.value}{instance.unit}",
+            performed_by=self.request.user,
+            role=self.request.user.role,
+        )
+
+    @action(detail=False, methods=['post'], url_path='bulk_update')
+    def bulk_update(self, request):
+        """
+        Allows updating multiple policy settings in a single request (e.g., an entire section).
+        """
+        settings_data = request.data.get('settings', [])
+        if not settings_data:
+            return api_response(False, None, "No settings provided", status.HTTP_400_BAD_REQUEST)
+
+        updated_count = 0
+        section_name = "Multiple Sections"
+        if len(settings_data) > 0:
+            section_id = settings_data[0].get('section')
+            if all(s.get('section') == section_id for s in settings_data):
+                section_name = section_id
+
+        for data in settings_data:
+            setting_id = data.get('id')
+            try:
+                instance = PolicySetting.objects.get(id=setting_id)
+                serializer = self.get_serializer(instance, data=data, partial=True)
+                if serializer.is_valid():
+                    serializer.save(last_updated_by=request.user)
+                    updated_count += 1
+            except PolicySetting.DoesNotExist:
+                continue
+
+        if updated_count > 0:
+            AuditLog.objects.create(
+                action=f"Bulk Policy Update: [{section_name}] — {updated_count} fields updated",
+                performed_by=request.user,
+                role=request.user.role,
+            )
+            return api_response(True, {'updated_count': updated_count}, f"Successfully updated {updated_count} settings")
         
-        if new_data is not None:
-            # Check for history if we want to be fancy, but for now let's just save
-            history_item = request.data.get('history_item')
-            if history_item:
-                PolicyHistory.objects.create(
-                    setting=policy,
-                    user_name=f"{request.user.first_name} {request.user.last_name}" or request.user.username,
-                    field_changed=history_item.get('field', 'Multiple fields'),
-                    old_value=history_item.get('old', 'N/A'),
-                    new_value=history_item.get('new', 'N/A'),
-                    effective_date=history_item.get('effective', 'N/A')
-                )
-            
-            policy.data = new_data
-            policy.updated_by = request.user
-            policy.save()
-            return api_response(True, PolicySettingSerializer(policy).data, f"Policy {category} updated")
-        
-        return api_response(False, None, "No data provided", status.HTTP_400_BAD_REQUEST)
+        return api_response(False, None, "No settings were updated", status.HTTP_400_BAD_REQUEST)
 
     @action(detail=False, methods=['get'])
     def all_settings(self, request):
+        """
+        Returns all policy settings grouped by section for the frontend.
+        """
         settings = self.get_queryset()
         serializer = self.get_serializer(settings, many=True)
-        # Convert list to dict for easier frontend consumption
-        result = {item['category']: item for item in serializer.data}
-        return api_response(True, result, "All policy settings retrieved")
+        
+        # Group by section
+        grouped = {}
+        for item in serializer.data:
+            sec = item['section']
+            if sec not in grouped:
+                grouped[sec] = []
+            grouped[sec].append(item)
+            
+        return api_response(True, grouped, "All policy settings retrieved")

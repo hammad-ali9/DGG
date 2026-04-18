@@ -13,10 +13,22 @@ class DashboardStatsView(APIView):
     permission_classes = [IsAdminUser]
 
     def get(self, request):
-        from django.db.models import Sum, Count
+        from django.db.models import Sum, Count, Q
+        from api.models import Payment
         
-        # Calculate real stats from the database
+        funding_type = request.query_params.get('funding_type', 'all').lower()
+        
+        # Base Submissions mapping (Robust matching for DGG form naming conventions)
+        mapping = {
+            'cdfn': Q(form__title__icontains='FormA') | Q(form__title__icontains='FormC'),
+            'dggr': Q(form__title__icontains='DGGR') | Q(form__title__icontains='Scholarship') | Q(form__title__icontains='Hardship') | Q(form__title__icontains='Form D') | Q(form__title__icontains='Form F') | Q(form__title__icontains='Form G'),
+            'ucepp': Q(form__title__icontains='UCEPP') | Q(form__title__icontains='Upgrading'),
+        }
+        
         submissions = FormSubmission.objects.all()
+        if funding_type in mapping:
+            submissions = submissions.filter(mapping[funding_type])
+            
         accepted_submissions = submissions.filter(status='accepted')
         
         # Breakdown by status
@@ -27,55 +39,56 @@ class DashboardStatsView(APIView):
         for s in status_counts:
             status_dict[s['status']] = s['total']
 
-        # Manual breakdown for "Stream Split" and totals per stream
-        # In a real system, this would come from a 'program' field on the submission or student
-        cdfn_subs = submissions.filter(form__title__icontains='FormA')
-        dggr_subs = submissions.filter(form__title__icontains='Top-Up')
-        ucepp_subs = submissions.filter(form__title__icontains='UCEPP')
-        
+        # Calculation of totals
         total_subs_count = submissions.count()
-        stream_counts = {
-            'pssp': cdfn_subs.count(), 
-            'dggr': dggr_subs.count(),
-            'ucepp': ucepp_subs.count(),
-            'pssp_percent': (cdfn_subs.count() / total_subs_count * 100) if total_subs_count > 0 else 0,
-            'dggr_percent': (dggr_subs.count() / total_subs_count * 100) if total_subs_count > 0 else 0,
-            'ucepp_percent': (ucepp_subs.count() / total_subs_count * 100) if total_subs_count > 0 else 0,
-        }
-
-        stream_totals = {
-            'pssp': cdfn_subs.filter(status='accepted').aggregate(total=Sum('amount'))['total'] or 0,
-            'dggr': dggr_subs.filter(status='accepted').aggregate(total=Sum('amount'))['total'] or 0,
-            'ucepp': ucepp_subs.filter(status='accepted').aggregate(total=Sum('amount'))['total'] or 0,
-        }
-
-        # Form B stats (Awaiting vs Received)
-        # This is approximated by checking if an "accepted" submission exists without a Form B (Form B being Form 2 in our seed)
-        form_b_stats = {
-            'received': submissions.filter(form__title__icontains='FormB').count(),
-            'awaiting': submissions.filter(form__title__icontains='FormA').count() - submissions.filter(form__title__icontains='FormB').count()
-        }
-
-        # Breakdown by form titles for specific cards
-        from django.db.models.functions import Lower
-        submissions_by_form = submissions.annotate(form_title=Lower('form__title')).values('form_title').annotate(count=Count('id'))
-        form_stats_dict = {s['form_title']: s['count'] for s in submissions_by_form}
+        total_funding = accepted_submissions.aggregate(total=Sum('amount'))['total'] or 0
+        
+        # Approval Rate
+        approval_rate = (accepted_submissions.count() / total_subs_count * 100) if total_subs_count > 0 else 0
+        
+        # Quarters (Fiscal or Calendar - using Calendar for now as per plan)
+        # 1: Jan-Mar, 2: Apr-Jun, 3: Jul-Sep, 4: Oct-Dec
+        quarterly_data = []
+        for q in range(1, 5):
+            months = range((q-1)*3 + 1, q*3 + 1)
+            q_subs = accepted_submissions.filter(submitted_at__month__in=months)
+            quarterly_data.append({
+                'quarter': f'Q{q}',
+                'amount': q_subs.aggregate(total=Sum('amount'))['total'] or 0,
+                'count': q_subs.count()
+            })
 
         stats = {
-            "total_students": User.objects.filter(role='student').count(),
-            "total_programs": Program.objects.all().count(),
-            "total_forms": Form.objects.all().count(),
+            "total_students": User.objects.filter(role='student').count() if funding_type == 'all' else submissions.values('student').distinct().count(),
             "total_submissions": total_subs_count,
-            "total_funding_approved": accepted_submissions.aggregate(total=Sum('amount'))['total'] or 0,
-            "pending_funding_total": submissions.filter(status='forwarded').aggregate(total=Sum('amount'))['total'] or 0,
+            "total_funding_approved": total_funding,
+            "approval_rate": round(approval_rate, 1),
+            "quarterly_report": quarterly_data,
             "submissions_by_status": status_dict,
-            "submissions_by_form": form_stats_dict,
-            "stream_split": stream_counts,
-            "stream_totals": stream_totals,
-            "form_b_stats": form_b_stats,
-            "flags_count": submissions.filter(status='forwarded').count(), 
+            "pending_payments_count": submissions.filter(status='accepted', amount__gt=0).count(), # Simplification: approved but has amount
             "recent_submissions": submissions.order_by('-submitted_at')[:10].values(
                 'id', 'form__title', 'student__full_name', 'status', 'submitted_at'
             )
         }
+        
+        # If funding_type is 'all', add the stream split for the main dashboard
+        if funding_type == 'all':
+            cdfn_q = FormSubmission.objects.filter(mapping['cdfn'])
+            dggr_q = FormSubmission.objects.filter(mapping['dggr'])
+            ucepp_q = FormSubmission.objects.filter(mapping['ucepp'])
+            
+            stats["stream_split"] = {
+                'pssp': cdfn_q.count(),
+                'dggr': dggr_q.count(),
+                'ucepp': ucepp_q.count(),
+                'pssp_percent': (cdfn_q.count() / total_subs_count * 100) if total_subs_count > 0 else 0,
+                'dggr_percent': (dggr_q.count() / total_subs_count * 100) if total_subs_count > 0 else 0,
+                'ucepp_percent': (ucepp_q.count() / total_subs_count * 100) if total_subs_count > 0 else 0,
+            }
+            stats["stream_totals"] = {
+                'pssp': cdfn_q.filter(status='accepted').aggregate(total=Sum('amount'))['total'] or 0,
+                'dggr': dggr_q.filter(status='accepted').aggregate(total=Sum('amount'))['total'] or 0,
+                'ucepp': ucepp_q.filter(status='accepted').aggregate(total=Sum('amount'))['total'] or 0,
+            }
+
         return api_response(True, stats, "Dashboard stats retrieved successfully")
