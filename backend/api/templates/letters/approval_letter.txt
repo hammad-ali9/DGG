@@ -1,0 +1,22 @@
+DECISION LETTER - APPROVAL
+
+Date: {{ decision_date }}
+
+Dear {{ student_name }},
+
+We are pleased to inform you that your application for {{ form_title }} has been APPROVED.
+
+Application Details:
+- Form Type: {{ form_title }}
+- Approved Amount: {{ approved_amount }}
+- Decision Date: {{ decision_date }}
+
+Your approved funding will be processed according to the DGG Student Portal payment schedule. 
+You will receive further communication regarding payment details and timing.
+
+If you have any questions about this decision, please contact the DGG Education Department.
+
+Sincerely,
+
+DGG Student Support Services
+Délı̨nę Got'ı̨nę Government

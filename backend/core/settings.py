@@ -14,12 +14,17 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure-default-fallback-key')
+SECRET_KEY = os.getenv('SECRET_KEY')
+if not SECRET_KEY:
+    if os.getenv('DJANGO_ENV') == 'production':
+        raise ValueError("SECRET_KEY environment variable must be set in production.")
+    # Development fallback only
+    SECRET_KEY = 'django-insecure-dev-only-key-do-not-use-in-production'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.getenv('DEBUG', 'True') == 'True'
+DEBUG = os.getenv('DEBUG', 'False') == 'True'
 
-ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', '').split(',') if os.getenv('ALLOWED_HOSTS') else []
+ALLOWED_HOSTS = [h.strip() for h in os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',') if h.strip()]
 
 
 # Application definition
@@ -139,9 +144,9 @@ SPECTACULAR_SETTINGS = {
 }
 
 # CORS configuration
-CORS_ALLOWED_ORIGINS = [
-    "http://localhost:5173",
-]
+# In production, set CORS_ALLOWED_ORIGINS in your .env as a comma-separated list
+_cors_origins = os.getenv('CORS_ALLOWED_ORIGINS', 'http://localhost:5173')
+CORS_ALLOWED_ORIGINS = [origin.strip() for origin in _cors_origins.split(',') if origin.strip()]
 
 # Media and Static files settings
 MEDIA_URL = '/media/'

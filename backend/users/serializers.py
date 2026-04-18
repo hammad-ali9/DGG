@@ -23,9 +23,12 @@ class RegisterSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ('email', 'full_name', 'password', 'phone', 'role', 'beneficiary_number', 'treaty_number', 'dob')
+        # 'role' is intentionally excluded — all self-registered users are students.
+        # Staff/director accounts must be created via the Django admin.
+        fields = ('email', 'full_name', 'password', 'phone', 'beneficiary_number', 'treaty_number', 'dob')
 
     def create(self, validated_data):
-        # Pass ALL validated_data to create_user (handled by **extra_fields in CustomUserManager)
+        # Force role to 'student' regardless of any payload manipulation
+        validated_data['role'] = 'student'
         user = User.objects.create_user(**validated_data)
         return user

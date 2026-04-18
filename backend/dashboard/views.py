@@ -50,10 +50,11 @@ class DashboardStatsView(APIView):
         }
 
         # Form B stats (Awaiting vs Received)
-        # This is approximated by checking if an "accepted" submission exists without a Form B (Form B being Form 2 in our seed)
+        form_b_received = submissions.filter(form__title__icontains='FormB').count()
+        form_a_count = submissions.filter(form__title__icontains='FormA').count()
         form_b_stats = {
-            'received': submissions.filter(form__title__icontains='FormB').count(),
-            'awaiting': submissions.filter(form__title__icontains='FormA').count() - submissions.filter(form__title__icontains='FormB').count()
+            'received': form_b_received,
+            'awaiting': max(0, form_a_count - form_b_received)
         }
 
         # Breakdown by form titles for specific cards

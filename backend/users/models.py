@@ -28,6 +28,7 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
         ('admin', 'Admin'),
         ('student', 'Student'),
         ('director', 'Director'),
+        ('finance', 'Finance'),
     )
 
     email = models.EmailField(unique=True)
@@ -40,6 +41,12 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
     beneficiary_number = models.CharField(max_length=50, blank=True, null=True)
     treaty_number = models.CharField(max_length=50, blank=True, null=True)
     dob = models.DateField(blank=True, null=True)
+    
+    # Suspension and consent fields
+    is_suspended = models.BooleanField(default=False)
+    suspended_until = models.DateField(blank=True, null=True)
+    suspension_reason = models.TextField(blank=True, null=True)
+    guardian_consent_on_file = models.BooleanField(default=False)
     
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)

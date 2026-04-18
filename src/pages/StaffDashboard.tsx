@@ -41,20 +41,22 @@ const StaffDashboard: React.FC = () => {
   const [notifications, setNotifications] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [staffProfile, setStaffProfile] = useState<{ full_name: string; role: string } | null>(null);
 
   const fetchApplications = async () => {
     try {
-      const data = await API.getSubmissions();
+      const data = await API.getSubmissions() as any[];
       setApplications(data);
       
-      const statsData = await API.getDashboardStats();
+      const statsData = await API.getDashboardStats() as any;
       setBackendStats(statsData);
 
-      const notifsData = await API.getNotifications();
+      const notifsData = await API.getNotifications() as any[];
       setNotifications(notifsData);
 
       // Verify role from profile to ensure absolute sync
-      const me = await API.getMe();
+      const me = await API.getMe() as any;
+      setStaffProfile({ full_name: me.full_name, role: me.role });
       if (me.role === 'director' && role !== 'director') {
         setRole('director');
         localStorage.setItem('dgg_role', 'director');
@@ -74,7 +76,7 @@ const StaffDashboard: React.FC = () => {
   // ── POLLING FOR REAL-TIME UPDATES ──
   useEffect(() => {
     fetchApplications();
-    const interval = setInterval(fetchApplications, 5000); // 5-second polling
+    const interval = setInterval(fetchApplications, 30000); // 30-second polling
     return () => clearInterval(interval);
   }, []);
 
@@ -106,6 +108,10 @@ const StaffDashboard: React.FC = () => {
 
   const [staffNote, setStaffNote] = useState('');
 
+  const [escalationLevel, setEscalationLevel] = useState<string>('none');
+  const [escalationReason, setEscalationReason] = useState('');
+  const [showEscalationModal, setShowEscalationModal] = useState(false);
+
   const handleDecision = async (status: 'accepted' | 'rejected' | 'forwarded') => {
     if (!selectedAppId) return;
     try {
@@ -128,6 +134,22 @@ const StaffDashboard: React.FC = () => {
       await fetchApplications(); // Refresh list to get new notes
     } catch (err: any) {
       alert(err.message || 'Failed to add note');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleEscalateAppeal = async () => {
+    if (!selectedAppId || !escalationLevel || escalationLevel === 'none') return;
+    setIsLoading(true);
+    try {
+      await API.escalateAppeal(Number(selectedAppId), escalationLevel, escalationReason);
+      setShowEscalationModal(false);
+      setEscalationLevel('none');
+      setEscalationReason('');
+      await fetchApplications(); // Refresh list
+    } catch (err: any) {
+      alert(err.message || 'Failed to escalate appeal');
     } finally {
       setIsLoading(false);
     }
@@ -183,7 +205,7 @@ const StaffDashboard: React.FC = () => {
       <div className="staff-sidebar">
         <div className="staff-sidebar-header">
           <div className="staff-user-block">
-            <div className="staff-user-name">{role === 'director' ? 'K. Baton' : 'J. Villeneuve'}</div>
+            <div className="staff-user-name">{staffProfile?.full_name || '—'}</div>
             <div className="staff-user-role">{role === 'director' ? 'Director of Education' : 'Student Support Worker'}</div>
           </div>
         </div>
@@ -202,7 +224,7 @@ const StaffDashboard: React.FC = () => {
                 <div className="staff-nav-title">Governance</div>
                 {renderNavItem('reports', 'Reports', <AdminIcons.Reports />)}
                 {renderNavItem('policy', 'Policy Settings', <AdminIcons.Policy />)}
-                {renderNavItem('appeals', 'Appeals', <AdminIcons.Apps />, 1)}
+                {renderNavItem('appeals', 'Appeals', <AdminIcons.Apps />, applications.filter(a => a.form_title === 'FormH').length)}
               </div>
             </>
           ) : (
@@ -236,6 +258,7 @@ const StaffDashboard: React.FC = () => {
           <div className="staff-view-title">
             {currentView === 'dashboard' && (role === 'director' ? 'Director Overview' : 'Admin Overview')}
             {currentView === 'applications' && 'All Applications'}
+            {currentView === 'appeals' && 'Appeals'}
             {currentView === 'detail' && (
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                 <button
@@ -403,7 +426,7 @@ const StaffDashboard: React.FC = () => {
 
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                        <span style={{ fontSize: '18px' }}>📜</span>
+                        <span style={{ fontSize: '18px' }}></span>
                         <span style={{ fontSize: '13px', fontWeight: '600' }}>Waiting Form B</span>
                       </div>
                       <span style={{ fontSize: '14px', fontWeight: '800' }}>{(backendStats?.form_b_stats?.awaiting || 0)}</span>
@@ -475,13 +498,12 @@ const StaffDashboard: React.FC = () => {
               </div>
 
               <div className="policy-tabs" style={{ marginBottom: '0', padding: '0 20px' }}>
-                <div className="policy-tab active">All (47)</div>
-                <div className="policy-tab" style={{ color: '#1a6b3a' }}>New (5)</div>
-                <div className="policy-tab">Review (8)</div>
-                <div className="policy-tab">Waiting Form B (4)</div>
-                <div className="policy-tab">Pending Director (3)</div>
-                <div className="policy-tab">Approved (24)</div>
-                <div className="policy-tab">Denied (3)</div>
+                <div className="policy-tab active">All ({filteredApps.length})</div>
+                <div className="policy-tab" style={{ color: '#1a6b3a' }}>New ({applications.filter(a => a.status === 'pending').length})</div>
+                <div className="policy-tab">Review ({applications.filter(a => a.status === 'reviewed').length})</div>
+                <div className="policy-tab">Pending Director ({applications.filter(a => a.status === 'forwarded').length})</div>
+                <div className="policy-tab">Approved ({applications.filter(a => a.status === 'accepted').length})</div>
+                <div className="policy-tab">Denied ({applications.filter(a => a.status === 'rejected').length})</div>
               </div>
 
               <div className="admin-table-wrap">
@@ -559,6 +581,9 @@ const StaffDashboard: React.FC = () => {
                     <>
                       <button className="admin-input" style={{ width: 'auto', fontSize: '11px', fontWeight: '700', background: '#1a6b3a', color: '#fff', border: 'none' }} onClick={() => handleDecision('accepted')}>APPROVE APPLICATION</button>
                       <button className="admin-input" style={{ width: 'auto', fontSize: '11px', fontWeight: '700', background: '#991b1b', color: '#fff', border: 'none' }} onClick={() => handleDecision('rejected')}>REJECT</button>
+                      {applications.find(a => a.id === selectedAppId)?.form_title === 'FormH' && (
+                        <button className="admin-input" style={{ width: 'auto', fontSize: '11px', fontWeight: '700', background: '#dd6b20', color: '#fff', border: 'none' }} onClick={() => setShowEscalationModal(true)}>ESCALATE APPEAL</button>
+                      )}
                     </>
                   ) : (
                     <button 
@@ -769,6 +794,86 @@ const StaffDashboard: React.FC = () => {
                       </div>
                     </div>
                   </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Escalation Modal */}
+          {showEscalationModal && (
+            <div style={{
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              background: 'rgba(0,0,0,0.5)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              zIndex: 1000
+            }}>
+              <div style={{
+                background: '#fff',
+                borderRadius: '12px',
+                padding: '32px',
+                maxWidth: '500px',
+                width: '90%',
+                boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)'
+              }}>
+                <h2 style={{ fontSize: '18px', fontWeight: '800', marginBottom: '16px' }}>Escalate Appeal</h2>
+                <p style={{ fontSize: '13px', color: '#64748b', marginBottom: '24px' }}>
+                  Select the escalation level for this appeal and provide a reason for escalation.
+                </p>
+
+                <div style={{ marginBottom: '20px' }}>
+                  <label style={{ fontSize: '12px', fontWeight: '700', color: '#1e293b', display: 'block', marginBottom: '8px' }}>ESCALATION LEVEL</label>
+                  <select
+                    className="admin-input"
+                    value={escalationLevel}
+                    onChange={(e) => setEscalationLevel(e.target.value)}
+                    style={{ width: '100%', background: '#fff' }}
+                  >
+                    <option value="none">— Select Level —</option>
+                    <option value="director">Director</option>
+                    <option value="beneficiary_services">Beneficiary Services</option>
+                    <option value="ceo">CEO</option>
+                    <option value="dkdk">DKDK</option>
+                  </select>
+                </div>
+
+                <div style={{ marginBottom: '24px' }}>
+                  <label style={{ fontSize: '12px', fontWeight: '700', color: '#1e293b', display: 'block', marginBottom: '8px' }}>REASON FOR ESCALATION</label>
+                  <textarea
+                    className="admin-input"
+                    placeholder="Explain why this appeal needs escalation..."
+                    value={escalationReason}
+                    onChange={(e) => setEscalationReason(e.target.value)}
+                    style={{ width: '100%', minHeight: '100px', padding: '12px', border: '1px solid #e2e8f0', borderRadius: '8px', fontFamily: 'inherit', fontSize: '13px', resize: 'none' }}
+                  />
+                </div>
+
+                <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+                  <button
+                    className="admin-input"
+                    style={{ width: 'auto', padding: '10px 20px', background: '#f1f5f9', color: '#1e293b', border: 'none', cursor: 'pointer', fontWeight: '700' }}
+                    onClick={() => {
+                      setShowEscalationModal(false);
+                      setEscalationLevel('none');
+                      setEscalationReason('');
+                    }}
+                    disabled={isLoading}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    className="admin-input"
+                    style={{ width: 'auto', padding: '10px 20px', background: '#dd6b20', color: '#fff', border: 'none', cursor: 'pointer', fontWeight: '700', opacity: escalationLevel === 'none' || isLoading ? 0.5 : 1 }}
+                    onClick={handleEscalateAppeal}
+                    disabled={escalationLevel === 'none' || isLoading}
+                  >
+                    {isLoading ? 'Escalating...' : 'Escalate Appeal'}
+                  </button>
                 </div>
               </div>
             </div>
@@ -1991,6 +2096,101 @@ const StaffDashboard: React.FC = () => {
                   <tbody>
                     <tr><td>PAY-9042</td><td>Marie Beaulieu</td><td>Tuition</td><td>$5,000</td><td><span className="admin-badge badge-approved">Released</span></td><td>Mar 5, 2025</td></tr>
                     <tr><td>PAY-9043</td><td>Marie Beaulieu</td><td>Living</td><td>$1,706</td><td><span className="admin-badge badge-approved">Released</span></td><td>Mar 1, 2025</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* Appeals View */}
+          {currentView === 'appeals' && (
+            <div className="fade-in">
+              <div className="admin-filters" style={{ gridTemplateColumns: '1fr auto auto' }}>
+                <div className="admin-search">
+                  <input
+                    type="text"
+                    className="admin-input"
+                    placeholder="Search applicant, ref #, institution..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                  />
+                </div>
+                <select className="admin-input" style={{ width: '160px' }}>
+                  <option>Status: All</option>
+                </select>
+                <select className="admin-input" style={{ width: '160px' }}>
+                  <option>Escalation: All</option>
+                </select>
+              </div>
+
+              <div className="policy-tabs" style={{ marginBottom: '0', padding: '0 20px' }}>
+                <div className="policy-tab active">All ({applications.filter(a => a.form_title === 'FormH').length})</div>
+                <div className="policy-tab">Director Level ({applications.filter(a => a.form_title === 'FormH' && a.escalation_level === 'director').length})</div>
+                <div className="policy-tab">Escalated ({applications.filter(a => a.form_title === 'FormH' && a.escalation_level && a.escalation_level !== 'none' && a.escalation_level !== 'director').length})</div>
+              </div>
+
+              <div className="admin-table-wrap">
+                <table className="admin-table">
+                  <thead>
+                    <tr>
+                      <th>REF #</th>
+                      <th>APPLICANT</th>
+                      <th>SUBMITTED</th>
+                      <th>STATUS</th>
+                      <th>ESCALATION LEVEL</th>
+                      <th>ACTIONS</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {applications.filter(a => a.form_title === 'FormH').map(app => (
+                      <tr key={app.id}>
+                        <td><span style={{ fontSize: '11px', color: '#64748b' }}>{app.id}</span></td>
+                        <td><strong>{app.student_details?.full_name}</strong></td>
+                        <td style={{ fontSize: '12px' }}>{new Date(app.submitted_at).toLocaleDateString()}</td>
+                        <td>{getStatusBadge(app.status)}</td>
+                        <td>
+                          <span className="admin-badge" style={{ 
+                            background: app.escalation_level === 'none' || !app.escalation_level ? '#f1f5f9' : 
+                                       app.escalation_level === 'director' ? '#e0e7ff' :
+                                       app.escalation_level === 'beneficiary_services' ? '#fef3c7' :
+                                       app.escalation_level === 'ceo' ? '#fecaca' : '#ddd6fe',
+                            color: app.escalation_level === 'none' || !app.escalation_level ? '#64748b' :
+                                   app.escalation_level === 'director' ? '#3730a3' :
+                                   app.escalation_level === 'beneficiary_services' ? '#92400e' :
+                                   app.escalation_level === 'ceo' ? '#991b1b' : '#5b21b6',
+                            fontSize: '10px',
+                            fontWeight: '700'
+                          }}>
+                            {app.escalation_level === 'none' || !app.escalation_level ? 'Director' : 
+                             app.escalation_level === 'director' ? 'Director' :
+                             app.escalation_level === 'beneficiary_services' ? 'Beneficiary Services' :
+                             app.escalation_level === 'ceo' ? 'CEO' :
+                             app.escalation_level === 'dkdk' ? 'DKDK' : app.escalation_level}
+                          </span>
+                        </td>
+                        <td>
+                          <button
+                            className="admin-input"
+                            style={{
+                              width: 'auto',
+                              padding: '6px 12px',
+                              background: '#000',
+                              color: '#fff',
+                              fontSize: '11px',
+                              fontWeight: '700',
+                              border: 'none',
+                              cursor: 'pointer'
+                            }}
+                            onClick={() => handleAppClick(app.id)}
+                          >
+                            Review →
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                    {applications.filter(a => a.form_title === 'FormH').length === 0 && (
+                      <tr><td colSpan={6} style={{ textAlign: 'center', padding: '40px', color: '#64748b' }}>No appeals found in system.</td></tr>
+                    )}
                   </tbody>
                 </table>
               </div>

@@ -58,6 +58,21 @@ class FormSubmission(models.Model):
         ('rejected', 'Rejected'),
     )
     
+    ESCALATION_LEVEL_CHOICES = (
+        ('none', 'None'),
+        ('director', 'Director'),
+        ('beneficiary_services', 'Beneficiary Services'),
+        ('ceo', 'CEO'),
+        ('dkdk', 'DKDK'),
+    )
+    
+    PROGRAM_STREAM_CHOICES = (
+        ('psssp', 'PSSSP'),
+        ('ucepp', 'UCEPP'),
+        ('dggr', 'DGGR'),
+        ('c-dfn', 'C-DFN'),
+    )
+    
     # Core Fields
     form = models.ForeignKey(Form, on_delete=models.CASCADE, related_name='submissions')
     student = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='submissions', null=True, blank=True)
@@ -77,6 +92,15 @@ class FormSubmission(models.Model):
     decided_at = models.DateTimeField(null=True, blank=True)
     decided_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='decided_submissions')
     decision_reason = models.TextField(blank=True, null=True)
+    
+    # Policy Tracking Fields (Requirement 2.7, 2.8, 2.15, 2.20, 2.22)
+    is_late = models.BooleanField(default=False, help_text="Indicates submission is past semester deadline")
+    director_exception_approved = models.BooleanField(default=False, help_text="Director approval for late submission")
+    decision_letter_text = models.TextField(blank=True, null=True, help_text="Auto-generated approval/rejection letter")
+    overpayment_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0.00, help_text="Calculated overpayment for status changes")
+    escalation_level = models.CharField(max_length=20, choices=ESCALATION_LEVEL_CHOICES, default='none', help_text="Appeal escalation level for FormH submissions")
+    guardian_consent_on_file = models.BooleanField(default=False, help_text="Guardian consent flag for students under 18")
+    program_stream = models.CharField(max_length=10, choices=PROGRAM_STREAM_CHOICES, blank=True, null=True, help_text="Funding stream: PSSSP, UCEPP, DGGR, or C-DFN")
 
     def __str__(self):
         return f"Submission for {self.form.title} by {self.student.email}"

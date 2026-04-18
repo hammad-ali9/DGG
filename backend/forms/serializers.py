@@ -71,14 +71,10 @@ class FormSubmissionSerializer(serializers.ModelSerializer):
                 # Try to find the field by label within this form
                 from .models import FormField
                 field = FormField.objects.filter(form=submission.form, label__icontains=field_label).first()
+                # If the field doesn't exist on this form, skip it rather than
+                # silently creating a new FormField (which pollutes the schema).
                 if not field:
-                    # If still not found, create a dummy field or ignore? 
-                    # For now, let's create it to be robust
-                    field = FormField.objects.create(
-                        form=submission.form, 
-                        label=field_label, 
-                        field_type='text'
-                    )
+                    continue
             
             if field:
                 SubmissionAnswer.objects.create(submission=submission, field=field, **answer_data)

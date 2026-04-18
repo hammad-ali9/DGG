@@ -9,6 +9,7 @@ import FormE from './Forms/FormE';
 import FormF from './Forms/FormF';
 import FormG from './Forms/FormG';
 import FormH from './Forms/FormH';
+import FormGTB from './Forms/FormGTB';
 import HardshipBursary from './Forms/HardshipBursary';
 import AcademicScholarship from './Forms/AcademicScholarship';
 import StudentProfile from './StudentProfile';
@@ -28,6 +29,7 @@ type DashboardView =
   | 'formF' 
   | 'formG' 
   | 'formH' 
+  | 'formGTB'
   | 'hardship' 
   | 'scholarship';
 
@@ -105,7 +107,7 @@ const Dashboard: React.FC = () => {
   // ── POLLING FOR REAL-TIME UPDATES ──
   useEffect(() => {
     fetchDashboardData();
-    const interval = setInterval(fetchDashboardData, 5000); // 5-second polling
+    const interval = setInterval(fetchDashboardData, 30000); // 30-second polling
     return () => clearInterval(interval);
   }, []);
 
@@ -279,9 +281,10 @@ const Dashboard: React.FC = () => {
         <div className="sidebar-divider"></div>
 
         <div className="sidebar-section-title">Claims</div>
-        {renderSidebarNav('formE', 'Form E — Travel Claim', <Icons.Files />)}
+        {renderSidebarNav('formE', 'Form E — Graduation Award', <Icons.Files />)}
         {renderSidebarNav('formF', 'Form F — Practicum Award', <Icons.Files />)}
-        {renderSidebarNav('formG', 'Form G — Grad Award', <Icons.Files />)}
+        {renderSidebarNav('formG', 'Form G — Travel Claim', <Icons.Files />)}
+        {renderSidebarNav('formGTB', 'Form GTB — Graduation Travel Bursary', <Icons.Files />)}
         {renderSidebarNav('formH', 'Form H — Appeal', <Icons.Files />)}
 
         <div className="sidebar-divider"></div>
@@ -763,6 +766,15 @@ const Dashboard: React.FC = () => {
                   profile={profile}
                   onBack={() => setCurrentView('dashboard')} 
                   onComplete={() => handleFormComplete('Form G')} 
+                />
+              )}
+
+              {/* \u2500\u2500 FORM GTB VIEW \u2500\u2500 */}
+              {currentView === 'formGTB' && (
+                <FormGTB 
+                  profile={profile}
+                  onBack={() => setCurrentView('dashboard')} 
+                  onComplete={() => handleFormComplete('Form GTB')} 
                 />
               )}
 

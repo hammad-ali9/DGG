@@ -1,0 +1,27 @@
+DECISION LETTER - REJECTION
+
+Date: {{ decision_date }}
+
+Dear {{ student_name }},
+
+We regret to inform you that your application for {{ form_title }} has been REJECTED.
+
+Application Details:
+- Form Type: {{ form_title }}
+- Decision Date: {{ decision_date }}
+
+Reason for Rejection:
+{{ rejection_reason }}
+
+Appeal Process:
+If you believe this decision is incorrect or if you have additional information that should be considered, 
+you have the right to appeal this decision. Please submit a Form H (Appeal) within 30 days of receiving 
+this letter to initiate the appeal process.
+
+For more information about the appeal process or if you have questions about this decision, 
+please contact the DGG Education Department.
+
+Sincerely,
+
+DGG Student Support Services
+Délı̨nę Got'ı̨nę Government

@@ -61,10 +61,39 @@ const FormG: React.FC<FormGProps> = ({ profile, onBack, onComplete }) => {
 
   const steps = [
     { id: 1, label: 'Personal Info' },
-    { id: 2, label: 'Graduation Details' },
+    { id: 2, label: 'Travel Details' },
     { id: 3, label: 'Banking & Release' },
     { id: 4, label: 'Declaration' }
   ];
+
+  // Validate travel date against policy requirements
+  const validateTravelDate = (travelDateStr: string): { isValid: boolean; message: string } => {
+    if (!travelDateStr) {
+      return { isValid: false, message: 'Travel date is required.' };
+    }
+
+    try {
+      const travelDate = new Date(travelDateStr);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      travelDate.setHours(0, 0, 0, 0);
+
+      // Check for future dates
+      if (travelDate > today) {
+        return { isValid: false, message: 'Travel date cannot be in the future.' };
+      }
+
+      // Check 30-day window
+      const daysDiff = Math.floor((today.getTime() - travelDate.getTime()) / (1000 * 60 * 60 * 24));
+      if (daysDiff > 30) {
+        return { isValid: false, message: 'Travel claims must be submitted within 30 days of the travel date.' };
+      }
+
+      return { isValid: true, message: '' };
+    } catch (err) {
+      return { isValid: false, message: 'Invalid travel date format.' };
+    }
+  };
 
   // BUG 5: Validation
   const canGoNext = () => {
@@ -72,7 +101,8 @@ const FormG: React.FC<FormGProps> = ({ profile, onBack, onComplete }) => {
       return formData.fullName && formData.dob && formData.treatyNumber && formData.email && formData.city;
     }
     if (currentStep === 2) {
-      return formData.institution && formData.program && formData.completionDate && selectedProof;
+      const travelValidation = validateTravelDate(formData.completionDate);
+      return formData.institution && formData.program && travelValidation.isValid && selectedProof;
     }
     if (currentStep === 3) {
       return formData.bankInstitution && formData.bankTransit && formData.bankAccount;
@@ -85,7 +115,7 @@ const FormG: React.FC<FormGProps> = ({ profile, onBack, onComplete }) => {
       setError(currentStep === 1 
         ? 'Please fill in all required personal information.' 
         : currentStep === 2
-          ? 'Please provide graduation details and upload proof of completion.'
+          ? 'Please provide travel details and upload proof of travel.'
           : 'Please provide banking details for payment.'
       );
       return;
@@ -123,7 +153,7 @@ const FormG: React.FC<FormGProps> = ({ profile, onBack, onComplete }) => {
         { field_label: 'Postal Code', answer_text: formData.postalCode },
         { field_label: 'Institution', answer_text: formData.institution },
         { field_label: 'Program', answer_text: formData.program },
-        { field_label: 'Completion Date', answer_text: formData.completionDate },
+        { field_label: 'Travel Date', answer_text: formData.completionDate },
         { field_label: 'Credential', answer_text: formData.credential },
         { field_label: 'Bank Institution', answer_text: formData.bankInstitution },
         { field_label: 'Bank Transit', answer_text: formData.bankTransit },
@@ -139,7 +169,7 @@ const FormG: React.FC<FormGProps> = ({ profile, onBack, onComplete }) => {
       });
 
       if (selectedProof) {
-        submissionData.append(`answers[${answers.length}]field_label`, 'Proof of Completion');
+        submissionData.append(`answers[${answers.length}]field_label`, 'Proof of Travel');
         submissionData.append(`answers[${answers.length}]answer_file`, selectedProof);
       }
 
@@ -162,9 +192,9 @@ const FormG: React.FC<FormGProps> = ({ profile, onBack, onComplete }) => {
           <div className="success-icon" style={{ margin: '0 auto 24px', width: '64px', height: '64px', border: '2px solid #38a169', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#38a169' }}>
             <Icons.Check />
           </div>
-          <h2 style={{ fontSize: '24px', fontWeight: '700', marginBottom: '12px' }}>Application Received</h2>
+          <h2 style={{ fontSize: '24px', fontWeight: '700', marginBottom: '12px' }}>Travel Claim Submitted</h2>
           <p style={{ fontSize: '14px', color: '#4a5568', lineHeight: '1.6', maxWidth: '400px', margin: '0 auto 32px' }}>
-            Congratulations on your graduation! Your award application is being processed. Payments are typically issued via direct deposit within 15 business days.
+            Your  travel claim has been received. Please allow 10-15 business days for processing after all receipts are verified.
           </p>
           <button className="wizard-btn-next" style={{ margin: '0 auto' }} onClick={() => onComplete()}>
             Back to Dashboard
@@ -176,13 +206,13 @@ const FormG: React.FC<FormGProps> = ({ profile, onBack, onComplete }) => {
 
   return (
     <FormWizard
-      title="Form G \u2014 Graduation Award"
+      title="Travel Claim"
       subtitle={currentStep === 1 
-        ? "Verify your identity and mailing address for award processing." 
+        ? "Apply for coverage of travel to and from your educational institution." 
         : currentStep === 2
-          ? "Tell us about your achievement and upload your proof of completion."
+          ? "Provide details about your travel and upload receipts for all expenses."
           : currentStep === 3
-            ? "Provide your banking details for the award payment."
+            ? "Finalize your claim with supporting documentation."
             : "Review and sign your application."
       }
       steps={steps}
@@ -255,7 +285,7 @@ const FormG: React.FC<FormGProps> = ({ profile, onBack, onComplete }) => {
       {currentStep === 2 && (
         <div className="fade-in">
           <div style={{ background: '#fff', border: '1px solid #e0e0e0', borderRadius: '4px', padding: '20px', marginBottom: '20px' }}>
-            <div className="section-divider">Graduation Details</div>
+            <div className="section-divider">Travel Details</div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
                 <div>
                   <label className="field-label">Institution *</label>
@@ -268,8 +298,26 @@ const FormG: React.FC<FormGProps> = ({ profile, onBack, onComplete }) => {
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                 <div>
-                  <label className="field-label">Completion Date *</label>
-                  <input className="field-input" type="date" value={formData.completionDate} onChange={e => handleInputChange('completionDate', e.target.value)} />
+                  <label className="field-label">Travel Date *</label>
+                  <input 
+                    className="field-input" 
+                    type="date" 
+                    value={formData.completionDate} 
+                    onChange={e => handleInputChange('completionDate', e.target.value)} 
+                  />
+                  {formData.completionDate && (() => {
+                    const validation = validateTravelDate(formData.completionDate);
+                    return (
+                      <div style={{ 
+                        marginTop: '8px', 
+                        fontSize: '12px', 
+                        color: validation.isValid ? '#38a169' : '#cc0000',
+                        fontWeight: '500'
+                      }}>
+                        {validation.message}
+                      </div>
+                    );
+                  })()}
                 </div>
                 <div>
                   <label className="field-label">Credential Earned *</label>
@@ -285,7 +333,7 @@ const FormG: React.FC<FormGProps> = ({ profile, onBack, onComplete }) => {
           </div>
 
           <div style={{ background: '#fff', border: '1px solid #e0e0e0', borderRadius: '4px', padding: '20px' }}>
-            <label className="field-label">Proof of Completion / Certificate *</label>
+            <label className="field-label">Proof of Travel / Receipts *</label>
             <input type="file" onChange={e => setSelectedProof(e.target.files?.[0] || null)} />
           </div>
         </div>
