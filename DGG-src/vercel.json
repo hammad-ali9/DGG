@@ -1,20 +1,9 @@
 {
   "version": 2,
-  "builds": [
-    {
-      "src": "backend/core/wsgi.py",
-      "use": "@vercel/python",
-      "config": { "maxLambdaSize": "15mb", "runtime": "python3.11" }
-    },
-    {
-      "src": "package.json",
-      "use": "@vercel/static-build"
-    }
-  ],
   "rewrites": [
     {
       "source": "/api/(.*)",
-      "destination": "backend/core/wsgi.py"
+      "destination": "/api/index.py"
     },
     {
       "source": "/(.*)",
