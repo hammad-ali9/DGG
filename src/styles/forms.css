@@ -151,17 +151,23 @@
 
 .field-input, .field-select, .field-textarea {
   width: 100%;
-  border: none;
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
   outline: none;
-  padding: 4px 10px 8px;
+  padding: 8px 12px;
+  margin: 4px 10px 10px;
+  width: calc(100% - 20px);
   font-size: 13px;
   color: #1a202c;
-  background: transparent;
+  background: #ffffff;
   font-family: inherit;
+  transition: border-color 0.2s, box-shadow 0.2s;
 }
 
-.field-input:focus {
-  background: #f0f7ff;
+.field-input:focus, .field-select:focus, .field-textarea:focus {
+  border-color: #3182ce;
+  box-shadow: 0 0 0 3px rgba(49, 130, 206, 0.1);
+  background: #ffffff;
 }
 
 .section-divider {

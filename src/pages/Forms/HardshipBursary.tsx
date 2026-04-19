@@ -33,7 +33,7 @@ const HardshipBursary: React.FC<HardshipBursaryProps> = ({ profile, onBack, onCo
     if (profile) {
       setFormData(prev => ({
         ...prev,
-        studentName: prev.studentName || `${profile.first_name || ''} ${profile.last_name || ''}`.trim(),
+        studentName: prev.studentName || profile.full_name || '',
         studentId: prev.studentId || profile.beneficiary_number || ''
       }));
     }
@@ -65,9 +65,10 @@ const HardshipBursary: React.FC<HardshipBursaryProps> = ({ profile, onBack, onCo
   ];
 
   // BUG 5: Validation
+  // Validation Logic
   const canGoNext = () => {
     if (currentStep === 1) {
-      return formData.studentName && formData.institution && formData.isCompliant;
+      return !!(formData.studentName && formData.institution && formData.isCompliant);
     }
     if (currentStep === 2) {
       return formData.hardshipDescription.length > 20 && formData.othersAttempted.length > 10;
@@ -80,14 +81,16 @@ const HardshipBursary: React.FC<HardshipBursaryProps> = ({ profile, onBack, onCo
 
   const handleNext = () => {
     if (!canGoNext()) {
-      setError(currentStep === 1 
-        ? 'Please fill in student and institution details.' 
-        : currentStep === 2
-          ? 'Please provide a detailed description of the hardship and other supports tried.'
-          : totalAmount > 500 
-            ? 'Total requested cannot exceed $500.00' 
-            : 'Please provide valid expense items.'
-      );
+      if (currentStep === 1) {
+        setError('Please fill in student details and confirm reporting compliance.');
+      } else if (currentStep === 2) {
+        if (formData.hardshipDescription.length <= 20) setError('Please provide a more detailed description of the hardship (min 20 chars).');
+        else if (formData.othersAttempted.length <= 10) setError('Please provide more detail on other supports you have attempted.');
+      } else if (currentStep === 3) {
+        if (totalAmount <= 0) setError('Please list at least one emergency expense.');
+        else if (totalAmount > 500) setError('The Hardship Bursary has a strict limit of $500.00.');
+        else setError('Please ensure all expense rows have both a purpose and a valid amount.');
+      }
       return;
     }
     setError(null);
@@ -175,7 +178,7 @@ const HardshipBursary: React.FC<HardshipBursaryProps> = ({ profile, onBack, onCo
       onBack={handleBack}
       onNext={handleNext}
       isLastStep={currentStep === 4}
-      nextDisabled={isLoading}
+      nextDisabled={!canGoNext() || isLoading}
       onSubmit={handleSubmit}
     >
       {error && (

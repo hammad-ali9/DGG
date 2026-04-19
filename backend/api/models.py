@@ -219,7 +219,13 @@ class Profile(models.Model):
     gender = models.CharField(max_length=50, blank=True, null=True)
     pronouns = models.CharField(max_length=50, blank=True, null=True)
     alt_phone_number = models.CharField(max_length=20, blank=True, null=True)
+    town_city = models.CharField(max_length=100, blank=True, null=True)
+    postal_code = models.CharField(max_length=20, blank=True, null=True)
     is_sfa_active = models.BooleanField(default=False)
+    institute_name = models.CharField(max_length=255, blank=True, null=True)
+    program_credential = models.CharField(max_length=255, blank=True, null=True)
+    enrollment_status = models.CharField(max_length=50, blank=True, null=True)
+    num_dependents = models.IntegerField(default=0)
     profile_completeness = models.IntegerField(default=0)
     
     def __str__(self):
@@ -240,7 +246,7 @@ class Application(models.Model):
         SPRING = 'spring', _('Spring')
         SUMMER = 'summer', _('Summer')
 
-    student = models.ForeignKey(User, on_delete=models.CASCADE, related_name='applications')
+    student = models.ForeignKey(User, on_delete=models.CASCADE, related_name='applications', null=True, blank=True)
     form_type = models.CharField(max_length=50) # 'FormA', 'FormC', etc.
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.NEW)
     amount = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)

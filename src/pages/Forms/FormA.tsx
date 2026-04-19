@@ -1,7 +1,20 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import API from '../../api/client';
 import FormWizard from '../../components/Forms/FormWizard';
 import '../../styles/forms.css';
+
+// SVG Icons for professional look
+const Icons = {
+  Check: () => (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+  ),
+  Star: () => (
+    <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" /></svg>
+  ),
+  ChevronRight: () => (
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6" /></svg>
+  )
+};
 
 interface FormAProps {
   profile?: any;
@@ -23,25 +36,73 @@ const FormA: React.FC<FormAProps> = ({ profile, onBack, onComplete }) => {
 
   // Form State for Preview Mapping
   const [formData, setFormData] = useState({
-    firstName: profile?.first_name || '',
-    lastName: profile?.last_name || '',
-    phone: profile?.profile?.phone_number || '',
+    firstName: profile?.full_name?.split(' ')[0] || '',
+    lastName: profile?.full_name?.split(' ').slice(1).join(' ') || '',
+    preferredName: profile?.preferred_name || '',
+    phone: profile?.phone || '',
     email: profile?.email || '',
-    studentId: profile?.profile?.beneficiary_number || '',
-    institution: '',
-    program: '',
+    dob: profile?.dob || '',
+    address: profile?.mailing_address || '',
+    city: profile?.town_city || 'Deline',
+    province: 'NT',
+    postalCode: profile?.postal_code || '',
+    sin: profile?.upi || '',
+    sex: profile?.gender || '',
+    beneficiaryNo: profile?.beneficiary_number || '',
+    studentId: profile?.student_id || '',
+    institution: profile?.institute || profile?.institution_name || '',
+    program: profile?.program_credential || '',
     semStart: '',
     semEnd: '',
     registrarEmail: '',
     registrarPhone: '',
     tuition: '',
-    beneficiaryNo: profile?.profile?.beneficiary_number || ''
+    accountHolder: profile?.account_holder_name || profile?.full_name || '',
+    transitNumber: profile?.transit_number || '',
+    instNumber: profile?.inst_number || '',
+    accountNumber: profile?.account_number || '',
+    signature: '',
+    programStart: '',
+    programEnd: profile?.expected_graduation_date || '',
+    courseLoad: profile?.enrollment_status || 'Full-time',
+    learningStyle: 'In-person',
+    currentAddress: '',
+    hasDependents: profile?.num_dependents > 0 ? 'yes' : 'no',
+    dependentCount: String(profile?.num_dependents || '0'),
+    semester: profile?.current_semester || 'Fall 2026',
+    institutionLocation: profile?.institution_location || ''
   });
 
-  // Eligibility state
-  const [eligAnswers, setEligAnswers] = useState({
-    q1: '', q2: '', q3: '', q4: '', q5: '', q6: ''
-  });
+  // Auto-fill sync from profile
+  useEffect(() => {
+    if (profile) {
+      setFormData(prev => ({
+        ...prev,
+        firstName: prev.firstName || profile.full_name?.split(' ')[0] || '',
+        lastName: prev.lastName || profile.full_name?.split(' ').slice(1).join(' ') || '',
+        preferredName: prev.preferredName || profile.preferred_name || '',
+        phone: prev.phone || profile.phone || '',
+        email: prev.email || profile.email || '',
+        dob: prev.dob || profile.dob || '',
+        address: prev.address || profile.mailing_address || '',
+        city: prev.city || profile.town_city || '',
+        postalCode: prev.postalCode || profile.postal_code || '',
+        sin: prev.sin || profile.upi || '',
+        sex: prev.sex || profile.gender || '',
+        beneficiaryNo: prev.beneficiaryNo || profile.beneficiary_number || '',
+        institution: prev.institution || profile.institute || profile.institution_name || '',
+        program: prev.program || profile.program_credential || '',
+        accountHolder: prev.accountHolder || profile.account_holder_name || profile.full_name || '',
+        transitNumber: prev.transitNumber || profile.transit_number || '',
+        instNumber: prev.instNumber || profile.inst_number || '',
+        accountNumber: prev.accountNumber || profile.account_number || '',
+        programEnd: prev.programEnd || profile.expected_graduation_date || '',
+        courseLoad: prev.courseLoad || profile.enrollment_status || 'Full-time',
+        semester: prev.semester || profile.current_semester || 'Fall 2026',
+        institutionLocation: prev.institutionLocation || profile.institution_location || ''
+      }));
+    }
+  }, [profile]);
 
   const steps = [
     { id: 1, label: 'Student Information' },
@@ -50,32 +111,21 @@ const FormA: React.FC<FormAProps> = ({ profile, onBack, onComplete }) => {
     { id: 4, label: 'Documents & Declaration' }
   ];
 
-  const handleNext = () => {
-    if (currentStep === 1 && !isEligible()) return;
-    if (currentStep < 4) setCurrentStep(currentStep + 1);
-  };
-
-  const handleBack = () => {
-    if (currentStep > 1) setCurrentStep(currentStep - 1);
-    else onBack();
-  };
-
   const handleSubmit = async () => {
     setIsLoading(true);
     setError(null);
     try {
       const formDataObj = new FormData();
-      
+
       const allAnswers = [
         ...Object.entries(formData).map(([key, val]) => ({ field_label: key, answer_text: String(val) })),
-        ...Object.entries(eligAnswers).map(([key, val]) => ({ field_label: `Eligibility ${key}`, answer_text: String(val) })),
         { field_label: 'bursaryStream', answer_text: getBursaryStream() }
       ];
 
       // Add file placeholders to answers and actual files to FormData
       const totalAnswers = [...allAnswers];
       const documents = [
-        'Transcripts *', 'Letter of Intent *', 'Reference Letter', 
+        'Transcripts *', 'Letter of Intent *', 'Reference Letter',
         'Status Card *', 'Void Cheque *', 'Extra Docs'
       ];
 
@@ -87,11 +137,15 @@ const FormA: React.FC<FormAProps> = ({ profile, onBack, onComplete }) => {
 
       // Append answers in indexed format for DRF nested serializer
       totalAnswers.forEach((ans, index) => {
-        formDataObj.append(`answers[${index}]field_label`, ans.field_label);
+        // Standardized labels for funding engine
+        if (ans.field_label === 'courseLoad') formDataObj.append(`answers[${index}]field_label`, 'Enrollment Status');
+        else if (ans.field_label === 'dependentCount') formDataObj.append(`answers[${index}]field_label`, 'Dependent Count');
+        else formDataObj.append(`answers[${index}]field_label`, ans.field_label);
+
         if (ans.answer_text) {
           formDataObj.append(`answers[${index}]answer_text`, ans.answer_text);
         }
-        
+
         // Match files by checking if this answer index corresponds to a file
         const file = selectedFiles[ans.field_label];
         if (file) {
@@ -104,7 +158,7 @@ const FormA: React.FC<FormAProps> = ({ profile, onBack, onComplete }) => {
         form_type: 'FormA',
         form_data: formDataObj // Pass FormData directly
       });
-      
+
       setIsSubmitted(true);
     } catch (err: any) {
       setError(err.message || 'Failed to submit application. Please try again.');
@@ -113,22 +167,38 @@ const FormA: React.FC<FormAProps> = ({ profile, onBack, onComplete }) => {
     }
   };
 
-  const isEligible = () => {
-    if (eligAnswers.q1 === 'no' && eligAnswers.q2 === 'no') return false;
-    if (eligAnswers.q5 === 'no' || eligAnswers.q6 === 'no') return false;
+  const getBursaryStream = () => {
+    return profile?.primary_stream || 'Admission Application Entry';
+  };
+
+  const canGoNext = () => {
+    if (currentStep === 1) {
+      return !!(formData.firstName && formData.lastName && formData.email && formData.phone && formData.dob && formData.address && formData.city && formData.sin);
+    }
+    if (currentStep === 2) {
+      return formData.institution && formData.program && formData.semStart && formData.semEnd && formData.registrarEmail;
+    }
+    if (currentStep === 3) {
+      return formData.accountHolder && formData.transitNumber && formData.instNumber && formData.accountNumber;
+    }
     return true;
   };
 
-  const isPartiallyAnswered = () => {
-    return Object.values(eligAnswers).some(val => val !== '');
+  const handleNext = () => {
+    if (!canGoNext()) {
+      setError(currentStep === 1
+        ? 'Please fill in all required personal information.'
+        : 'Please fill in all required fields marked with *'
+      );
+      return;
+    }
+    setError(null);
+    if (currentStep < 4) setCurrentStep(currentStep + 1);
   };
 
-  const getBursaryStream = () => {
-    if (eligAnswers.q4 === 'nwt') return 'DGGR Top-Up (SFA Primary)';
-    if (eligAnswers.q1 === 'yes' && eligAnswers.q2 === 'yes') return 'PSSSP + DGGR Top-up';
-    if (eligAnswers.q1 === 'yes') return 'Federal PSSSP / UCEPP';
-    if (eligAnswers.q2 === 'yes') return 'DGGR Top-Up Only';
-    return 'Pending Eligibility Check';
+  const handleBack = () => {
+    if (currentStep > 1) setCurrentStep(currentStep - 1);
+    else onBack();
   };
 
   if (isSubmitted) {
@@ -143,12 +213,12 @@ const FormA: React.FC<FormAProps> = ({ profile, onBack, onComplete }) => {
             Reference: APP-2026-N{Math.floor(1000 + Math.random() * 9000)}
           </div>
           <p style={{ fontSize: '14px', color: '#4a5568', lineHeight: '1.6', maxWidth: '400px', margin: '0 auto 24px' }}>
-            Your Form A has been received by the DGG Education Department.
+            Your application has been received by the DGG Education Department.
           </p>
           <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', padding: '20px', borderRadius: '8px', textAlign: 'left', marginBottom: '32px' }}>
-            <div style={{ fontWeight: '700', color: '#1e40af', marginBottom: '8px', fontSize: '14px' }}>📧 Form B Sent Automatically</div>
+            <div style={{ fontWeight: '700', color: '#1e40af', marginBottom: '8px', fontSize: '14px' }}>📧 Enrollment Verification Sent Automatically</div>
             <div style={{ fontSize: '12.5px', color: '#1e40af', lineHeight: '1.6' }}>
-              An enrollment confirmation request (Form B) has been pre-filled and emailed to your institution's registrar at <strong>{formData.registrarEmail || 'the official address provided'}</strong>.
+              An enrollment confirmation request has been pre-filled and emailed to your institution's registrar at <strong>{formData.registrarEmail || 'the official address provided'}</strong>.
               <br /><br />
               The institution has <strong>14 days</strong> to complete and return it. You can track this in your dashboard.
             </div>
@@ -163,9 +233,9 @@ const FormA: React.FC<FormAProps> = ({ profile, onBack, onComplete }) => {
 
   return (
     <FormWizard
-      title="Form A \u2014 New Student Application"
+      title="New Student Application"
       subtitle={currentStep === 1
-        ? "Complete all required fields. This info will auto-fill Form B for your registrar."
+        ? "Please confirm your personal information below. This data will pre-fill Form B for your registrar."
         : currentStep === 4
           ? "Upload supporting documents and sign the declaration to finalize."
           : "Living allowance and tuition are auto-calculated from your eligibility and confirmed by your institution. Please provide your direct deposit details below to ensure timely payments."
@@ -176,7 +246,7 @@ const FormA: React.FC<FormAProps> = ({ profile, onBack, onComplete }) => {
       onBack={handleBack}
       onNext={handleNext}
       isLastStep={currentStep === 4}
-      nextDisabled={(currentStep === 1 && isPartiallyAnswered() && !isEligible()) || isLoading}
+      nextDisabled={!canGoNext() || isLoading}
       onSubmit={handleSubmit}
     >
       {error && (
@@ -186,88 +256,7 @@ const FormA: React.FC<FormAProps> = ({ profile, onBack, onComplete }) => {
       )}
       {currentStep === 1 && (
         <div className="fade-in">
-          {/* Eligibility Checkbox */}
-          <div className="elig-box" style={{ background: '#f8fafc', border: '1px solid #e2e8f0', padding: '24px', borderRadius: '8px', marginBottom: '32px' }}>
-            <div className="section-divider" style={{ border: 'none', background: 'transparent', padding: 0, marginBottom: 16, color: '#1a3a6b' }}>Eligibility Questionnaire</div>
 
-            <div className="elig-grid" style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '20px' }}>
-              <div className="elig-item">
-                <div className="elig-q" style={{ fontSize: '12.5px', fontWeight: '600', color: '#334155', marginBottom: 8 }}>
-                  1. Are you registered under the Indian Act with Délı̨nę First Nation?
-                </div>
-                <div style={{ display: 'flex', gap: 16 }}>
-                  <label className="radio-label"><input type="radio" name="e1" checked={eligAnswers.q1 === 'yes'} onChange={() => setEligAnswers({ ...eligAnswers, q1: 'yes' })} /> Yes</label>
-                  <label className="radio-label"><input type="radio" name="e1" checked={eligAnswers.q1 === 'no'} onChange={() => setEligAnswers({ ...eligAnswers, q1: 'no' })} /> No</label>
-                </div>
-              </div>
-
-              <div className="elig-item">
-                <div className="elig-q" style={{ fontSize: '12.5px', fontWeight: '600', color: '#334155', marginBottom: 8 }}>
-                  2. Are you a Délı̨nę Beneficiary? <span style={{ fontWeight: 400, color: '#38a169', fontSize: '10px', marginLeft: 8, cursor: 'help' }}>[?] View Definition</span>
-                </div>
-                <div style={{ display: 'flex', gap: 16 }}>
-                  <label className="radio-label"><input type="radio" name="e2" checked={eligAnswers.q2 === 'yes'} onChange={() => setEligAnswers({ ...eligAnswers, q2: 'yes' })} /> Yes</label>
-                  <label className="radio-label"><input type="radio" name="e2" checked={eligAnswers.q2 === 'no'} onChange={() => setEligAnswers({ ...eligAnswers, q2: 'no' })} /> No</label>
-                </div>
-              </div>
-
-              <div className="elig-item">
-                <div className="elig-q" style={{ fontSize: '12.5px', fontWeight: '600', color: '#334155', marginBottom: 8 }}>
-                  3. Are you currently receiving GNWT Student Financial Assistance (SFA)?
-                </div>
-                <div style={{ display: 'flex', gap: 16 }}>
-                  <label className="radio-label"><input type="radio" name="e3" checked={eligAnswers.q3 === 'yes'} onChange={() => setEligAnswers({ ...eligAnswers, q3: 'yes' })} /> Yes</label>
-                  <label className="radio-label"><input type="radio" name="e3" checked={eligAnswers.q3 === 'no'} onChange={() => setEligAnswers({ ...eligAnswers, q3: 'no' })} /> No</label>
-                </div>
-              </div>
-
-              <div className="elig-item">
-                <div className="elig-q" style={{ fontSize: '12.5px', fontWeight: '600', color: '#334155', marginBottom: 8 }}>
-                  4. Where do you currently live?
-                </div>
-                <select
-                  className="field-input"
-                  style={{ width: '220px' }}
-                  value={eligAnswers.q4}
-                  onChange={(e) => setEligAnswers({ ...eligAnswers, q4: e.target.value })}
-                >
-                  <option value="">Select location...</option>
-                  <option value="nwt">Northwest Territories</option>
-                  <option value="other">Other CA Province/Territory</option>
-                  <option value="outside">Outside Canada</option>
-                </select>
-              </div>
-
-              <div className="elig-item">
-                <div className="elig-q" style={{ fontSize: '12.5px', fontWeight: '600', color: '#334155', marginBottom: 8 }}>
-                  5. Enrolled in an Accredited Institution? <a href="#" style={{ fontWeight: 400, color: '#3182ce', textDecoration: 'underline', fontSize: '10px', marginLeft: 8 }}>Federal Master List</a>
-                </div>
-                <div style={{ display: 'flex', gap: 16 }}>
-                  <label className="radio-label"><input type="radio" name="e4" checked={eligAnswers.q5 === 'yes'} onChange={() => setEligAnswers({ ...eligAnswers, q5: 'yes' })} /> Yes</label>
-                  <label className="radio-label"><input type="radio" name="e4" checked={eligAnswers.q5 === 'no'} onChange={() => setEligAnswers({ ...eligAnswers, q5: 'no' })} /> No</label>
-                </div>
-              </div>
-
-              <div className="elig-item">
-                <div className="elig-q" style={{ fontSize: '12.5px', fontWeight: '600', color: '#334155', marginBottom: 8 }}>
-                  6. Approved program (at least 12 continuous weeks)?
-                </div>
-                <div style={{ display: 'flex', gap: 16 }}>
-                  <label className="radio-label"><input type="radio" name="e5" checked={eligAnswers.q6 === 'yes'} onChange={() => setEligAnswers({ ...eligAnswers, q6: 'yes' })} /> Yes</label>
-                  <label className="radio-label"><input type="radio" name="e5" checked={eligAnswers.q6 === 'no'} onChange={() => setEligAnswers({ ...eligAnswers, q6: 'no' })} /> No</label>
-                </div>
-              </div>
-
-              {isPartiallyAnswered() && !isEligible() && (
-                <div className="alert-box error fade-in" style={{ background: '#fff2f2', border: '1px solid #ffcccc', color: '#cc0000', padding: '16px', borderRadius: '6px' }}>
-                  <strong style={{ display: 'block', marginBottom: '4px' }}>Intake Stopped</strong>
-                  <div style={{ fontSize: '11.5px', lineHeight: '1.6' }}>
-                    Based on your answers, you do not meet the baseline eligibility for DGG funding streams. Please contact our support team at education.support@gov.deline.ca for guidance.
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
 
           <div className="section-divider">Student Information</div>
           <table className="form-grid">
@@ -291,27 +280,73 @@ const FormA: React.FC<FormAProps> = ({ profile, onBack, onComplete }) => {
               <tr>
                 <td colSpan={2}>
                   <label className="field-label">Permanent Address in NT *</label>
-                  <input className="field-input" type="text" placeholder="Street address or PO Box" />
+                  <input
+                    className="field-input" type="text" placeholder="Street address or PO Box"
+                    value={formData.address} onChange={e => setFormData({ ...formData, address: e.target.value })}
+                  />
                 </td>
               </tr>
               <tr>
-                <td width="40%">
+                <td width="70%">
                   <label className="field-label">Town / City *</label>
-                  <input className="field-input" type="text" placeholder="Deline" />
+                  <input
+                    className="field-input" type="text" placeholder="Deline"
+                    value={formData.city} onChange={e => setFormData({ ...formData, city: e.target.value })}
+                  />
                 </td>
                 <td width="30%">
                   <label className="field-label">Territory / Province *</label>
-                  <input className="field-input" type="text" defaultValue="NT" />
+                  <input
+                    className="field-input" type="text"
+                    value={formData.province} onChange={e => setFormData({ ...formData, province: e.target.value })}
+                  />
                 </td>
-                <td width="30%">
+              </tr>
+              <tr>
+                <td width="50%">
                   <label className="field-label">Postal Code *</label>
-                  <input className="field-input" type="text" placeholder="X0E 0G0" />
+                  <input
+                    className="field-input" type="text" placeholder="X0E 0G0"
+                    value={formData.postalCode} onChange={e => setFormData({ ...formData, postalCode: e.target.value })}
+                  />
+                </td>
+                <td width="50%">
+                  <label className="field-label">SIN (For T4A purposes) *</label>
+                  <input
+                    className="field-input" type="password" placeholder="000-000-000"
+                    value={formData.sin} onChange={e => setFormData({ ...formData, sin: e.target.value })}
+                  />
                 </td>
               </tr>
               <tr>
                 <td colSpan={2}>
                   <label className="field-label">Current Address (Leave blank if same as above)</label>
-                  <input className="field-input" type="text" placeholder="In-school address" />
+                  <input
+                    className="field-input" type="text" placeholder="In-school address"
+                    value={formData.currentAddress} onChange={e => setFormData({ ...formData, currentAddress: e.target.value })}
+                  />
+                </td>
+              </tr>
+              <tr>
+                <td width="50%">
+                  <label className="field-label">Sex *</label>
+                  <select
+                    className="field-input" style={{ width: '97%', height: '36px' }}
+                    value={formData.sex} onChange={e => setFormData({ ...formData, sex: e.target.value })}
+                  >
+                    <option value="">Select</option>
+                    <option>Female</option>
+                    <option>Male</option>
+                    <option>Non-binary</option>
+                    <option>Prefer not to say</option>
+                  </select>
+                </td>
+                <td width="50%">
+                  <label className="field-label">Date of Birth *</label>
+                  <input
+                    className="field-input" type="text" placeholder="YYYY/MM/DD"
+                    value={formData.dob} onChange={e => setFormData({ ...formData, dob: e.target.value })}
+                  />
                 </td>
               </tr>
               <tr>
@@ -332,38 +367,33 @@ const FormA: React.FC<FormAProps> = ({ profile, onBack, onComplete }) => {
               </tr>
               <tr>
                 <td>
-                  <label className="field-label">SIN (For T4A purposes) *</label>
-                  <input className="field-input" type="password" placeholder="000-000-000" />
-                </td>
-                <td>
-                  <label className="field-label">Sex *</label>
-                  <select className="field-input" style={{ width: '100%', height: '36px' }}>
-                    <option value="">Select</option>
-                    <option>Female</option>
-                    <option>Male</option>
-                    <option>Non-binary</option>
-                    <option>Prefer not to say</option>
-                  </select>
-                </td>
-                <td>
-                  <label className="field-label">Date of Birth *</label>
-                  <input className="field-input" type="text" placeholder="YYYY/MM/DD" />
-                </td>
-              </tr>
-              <tr>
-                <td>
                   <label className="field-label">Délı̨nę Beneficiary #</label>
                   <input
                     className="field-input" type="text" placeholder="DGG-00412"
                     value={formData.beneficiaryNo} onChange={e => setFormData({ ...formData, beneficiaryNo: e.target.value })}
                   />
                 </td>
-                <td colSpan={2}>
+                <td>
                   <label className="field-label">Dependents? (if yes, provide count)</label>
                   <div style={{ display: 'flex', gap: '16px', alignItems: 'center', marginTop: 8 }}>
-                    <label className="radio-label"><input type="radio" name="dep" /> Yes</label>
-                    <label className="radio-label"><input type="radio" name="dep" /> No</label>
-                    <input className="field-input" type="number" placeholder="0" style={{ width: '80px' }} />
+                    <label className="radio-label">
+                      <input
+                        type="radio" name="dep"
+                        checked={formData.hasDependents === 'yes'}
+                        onChange={() => setFormData({ ...formData, hasDependents: 'yes' })}
+                      /> Yes
+                    </label>
+                    <label className="radio-label">
+                      <input
+                        type="radio" name="dep"
+                        checked={formData.hasDependents === 'no'}
+                        onChange={() => setFormData({ ...formData, hasDependents: 'no' })}
+                      /> No
+                    </label>
+                    <input
+                      className="field-input" type="number" placeholder="0" style={{ width: '80px' }}
+                      value={formData.dependentCount} onChange={e => setFormData({ ...formData, dependentCount: e.target.value })}
+                    />
                   </div>
                 </td>
               </tr>
@@ -387,7 +417,10 @@ const FormA: React.FC<FormAProps> = ({ profile, onBack, onComplete }) => {
                 </td>
                 <td width="40%">
                   <label className="field-label">Institution Location</label>
-                  <input className="field-input" type="text" placeholder="City, Prov" />
+                  <input
+                    className="field-input" type="text" placeholder="City, Prov"
+                    value={formData.institutionLocation} onChange={e => setFormData({ ...formData, institutionLocation: e.target.value })}
+                  />
                 </td>
               </tr>
               <tr>
@@ -401,8 +434,20 @@ const FormA: React.FC<FormAProps> = ({ profile, onBack, onComplete }) => {
                 <td width="40%">
                   <label className="field-label">Course Load *</label>
                   <div style={{ display: 'flex', gap: 16, marginTop: 8 }}>
-                    <label className="radio-label"><input type="radio" name="load" /> Full-time</label>
-                    <label className="radio-label"><input type="radio" name="load" /> Part-time</label>
+                    <label className="radio-label">
+                      <input
+                        type="radio" name="load"
+                        checked={formData.courseLoad === 'Full-time'}
+                        onChange={() => setFormData({ ...formData, courseLoad: 'Full-time' })}
+                      /> Full-time
+                    </label>
+                    <label className="radio-label">
+                      <input
+                        type="radio" name="load"
+                        checked={formData.courseLoad === 'Part-time'}
+                        onChange={() => setFormData({ ...formData, courseLoad: 'Part-time' })}
+                      /> Part-time
+                    </label>
                   </div>
                 </td>
               </tr>
@@ -410,8 +455,20 @@ const FormA: React.FC<FormAProps> = ({ profile, onBack, onComplete }) => {
                 <td colSpan={2}>
                   <label className="field-label">Learning Style</label>
                   <div style={{ display: 'flex', gap: 16, marginTop: 8 }}>
-                    <label className="radio-label"><input type="radio" name="style" /> In-person</label>
-                    <label className="radio-label"><input type="radio" name="style" /> Online / Hybrid</label>
+                    <label className="radio-label">
+                      <input
+                        type="radio" name="style"
+                        checked={formData.learningStyle === 'In-person'}
+                        onChange={() => setFormData({ ...formData, learningStyle: 'In-person' })}
+                      /> In-person
+                    </label>
+                    <label className="radio-label">
+                      <input
+                        type="radio" name="style"
+                        checked={formData.learningStyle === 'Online / Hybrid'}
+                        onChange={() => setFormData({ ...formData, learningStyle: 'Online / Hybrid' })}
+                      /> Online / Hybrid
+                    </label>
                   </div>
                 </td>
               </tr>
@@ -424,7 +481,10 @@ const FormA: React.FC<FormAProps> = ({ profile, onBack, onComplete }) => {
               <tr>
                 <td width="33%">
                   <label className="field-label">Semester (e.g. Fall 2026) *</label>
-                  <input className="field-input" type="text" placeholder="Fall 2026" />
+                  <input
+                    className="field-input" type="text" placeholder="Fall 2026"
+                    value={formData.semester} onChange={e => setFormData({ ...formData, semester: e.target.value })}
+                  />
                 </td>
                 <td width="33%">
                   <label className="field-label">Semester Start (YY/MM/DD) *</label>
@@ -444,11 +504,17 @@ const FormA: React.FC<FormAProps> = ({ profile, onBack, onComplete }) => {
               <tr>
                 <td width="50%">
                   <label className="field-label">Total Program Start *</label>
-                  <input className="field-input" type="text" placeholder="26/09/01" />
+                  <input
+                    className="field-input" type="text" placeholder="26/09/01"
+                    value={formData.programStart} onChange={e => setFormData({ ...formData, programStart: e.target.value })}
+                  />
                 </td>
                 <td width="50%">
                   <label className="field-label">Total Program End (Expected) *</label>
-                  <input className="field-input" type="text" placeholder="28/05/15" />
+                  <input
+                    className="field-input" type="text" placeholder="28/05/15"
+                    value={formData.programEnd} onChange={e => setFormData({ ...formData, programEnd: e.target.value })}
+                  />
                 </td>
               </tr>
             </tbody>
@@ -492,21 +558,35 @@ const FormA: React.FC<FormAProps> = ({ profile, onBack, onComplete }) => {
               <tr>
                 <td colSpan={3}>
                   <label className="field-label">Account Holder Name *</label>
-                  <input className="field-input" type="text" placeholder="Full legal name as on bank record" />
+                  <input
+                    className="field-input" type="text" placeholder="Full legal name as on bank record"
+                    value={formData.accountHolder} onChange={e => setFormData({ ...formData, accountHolder: e.target.value })}
+                  />
                 </td>
               </tr>
               <tr>
-                <td width="33%">
+                <td width="50%">
                   <label className="field-label">Transit # (5 digits)</label>
-                  <input className="field-input" type="text" maxLength={5} placeholder="00000" />
+                  <input
+                    className="field-input" type="text" maxLength={5} placeholder="00000"
+                    value={formData.transitNumber} onChange={e => setFormData({ ...formData, transitNumber: e.target.value })}
+                  />
                 </td>
-                <td width="33%">
+                <td width="50%">
                   <label className="field-label">Inst # (3 digits)</label>
-                  <input className="field-input" type="text" maxLength={3} placeholder="000" />
+                  <input
+                    className="field-input" type="text" maxLength={3} placeholder="000"
+                    value={formData.instNumber} onChange={e => setFormData({ ...formData, instNumber: e.target.value })}
+                  />
                 </td>
-                <td width="33%">
+              </tr>
+              <tr>
+                <td colSpan={2}>
                   <label className="field-label">Account # (7-12 digits)</label>
-                  <input className="field-input" type="text" placeholder="000000000" />
+                  <input
+                    className="field-input" type="text" placeholder="000000000"
+                    value={formData.accountNumber} onChange={e => setFormData({ ...formData, accountNumber: e.target.value })}
+                  />
                 </td>
               </tr>
             </tbody>
@@ -538,9 +618,9 @@ const FormA: React.FC<FormAProps> = ({ profile, onBack, onComplete }) => {
                 <div style={{ display: 'flex', gap: 10, marginTop: 10 }}>
                   <label className="btn-ghost" style={{ fontSize: 9, cursor: 'pointer', display: 'inline-block' }}>
                     {selectedFiles[doc.label] ? 'Change File' : 'Choose File'}
-                    <input 
-                      type="file" 
-                      style={{ display: 'none' }} 
+                    <input
+                      type="file"
+                      style={{ display: 'none' }}
                       onChange={(e) => handleFileChange(doc.label, e.target.files?.[0] || null)}
                     />
                   </label>
@@ -562,7 +642,10 @@ const FormA: React.FC<FormAProps> = ({ profile, onBack, onComplete }) => {
               <tr>
                 <td width="70%">
                   <label className="field-label">Student Signature (Full Legal Name) *</label>
-                  <input className="field-input" type="text" placeholder="Marie Beaulieu" />
+                  <input
+                    className="field-input" type="text" placeholder="Marie Beaulieu"
+                    value={formData.signature} onChange={e => setFormData({ ...formData, signature: e.target.value })}
+                  />
                 </td>
                 <td width="30%">
                   <label className="field-label">Date *</label>
@@ -592,7 +675,7 @@ const FormA: React.FC<FormAProps> = ({ profile, onBack, onComplete }) => {
             </div>
             <div className="modal-body">
               <div className="form-b-notice">
-                This form has been <strong>automatically pre-filled</strong> from your Form A entries. It will be emailed to your institution's registrar upon submission. The institution completes the lower section and returns it — <strong>they do not need a portal account</strong>.<br /><br />
+                This form has been <strong>automatically pre-filled</strong> from your application entries. It will be emailed to your institution's registrar upon submission. The institution completes the lower section and returns it — <strong>they do not need a portal account</strong>.<br /><br />
                 <strong style={{ color: '#111' }}>Privacy Note:</strong> Your Social Insurance Number and Date of Birth have been omitted from this form to protect your identity. If you see anything here that seems inaccurate, misleading, or wrong, please let us know before submitting.
               </div>
 
@@ -602,7 +685,7 @@ const FormA: React.FC<FormAProps> = ({ profile, onBack, onComplete }) => {
               </div>
 
               {/* Student section (auto-filled, read-only) */}
-              <div className="formb-section">To Be Completed by Student (Auto-filled from your Form A)</div>
+              <div className="formb-section">To Be Completed by Student (Auto-filled from your application)</div>
               <table className="formb-table">
                 <tbody>
                   <tr>
@@ -731,7 +814,7 @@ const FormA: React.FC<FormAProps> = ({ profile, onBack, onComplete }) => {
             </div>
             <div className="modal-footer">
               <div className="modal-footer-note">
-                This form will be automatically emailed to your institution's registrar at <strong>{formData.registrarEmail || 'the official address'}</strong> when you submit Form A. They have 14 days to complete and return it.
+                This form will be automatically emailed to your institution's registrar at <strong>{formData.registrarEmail || 'the official address'}</strong> when you submit your application. They have 14 days to complete and return it.
               </div>
               <button className="btn-confirm" onClick={() => setShowFormBPreview(false)}>Close Preview</button>
             </div>
@@ -742,17 +825,6 @@ const FormA: React.FC<FormAProps> = ({ profile, onBack, onComplete }) => {
   );
 };
 
-// SVG Icons for professional look
-const Icons = {
-  Check: () => (
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
-  ),
-  Star: () => (
-    <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" /></svg>
-  ),
-  ChevronRight: () => (
-    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6" /></svg>
-  )
-};
+
 
 export default FormA;

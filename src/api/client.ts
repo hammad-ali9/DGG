@@ -1,6 +1,7 @@
 import axios from 'axios';
+import { API_BASE_URL } from '../config/api';
 
-const BASE_URL = 'http://localhost:8000/api';
+const BASE_URL = API_BASE_URL;
 
 // Create a central axios instance
 const apiClient = axios.create({
@@ -18,6 +19,13 @@ apiClient.interceptors.request.use(
         if (token && !config.headers.hasOwnProperty('Authorization')) {
             config.headers.Authorization = `Bearer ${token}`;
         }
+
+        // CRITICAL: If the request body is FormData, delete the manually set
+        // Content-Type so the browser can set it automatically with the correct
+        // multipart boundary string. Without this, file uploads fail.
+        if (config.data instanceof FormData) {
+            delete config.headers['Content-Type'];
+        }
         
         return config;
     },
@@ -25,27 +33,6 @@ apiClient.interceptors.request.use(
         return Promise.reject(error);
     }
 );
-
-// Track whether a token refresh is already in progress to avoid parallel refresh calls
-let isRefreshing = false;
-let refreshSubscribers: ((token: string) => void)[] = [];
-
-const subscribeTokenRefresh = (cb: (token: string) => void) => {
-    refreshSubscribers.push(cb);
-};
-
-const onTokenRefreshed = (newToken: string) => {
-    refreshSubscribers.forEach(cb => cb(newToken));
-    refreshSubscribers = [];
-};
-
-const redirectToLogin = () => {
-    localStorage.removeItem('dgg_token');
-    localStorage.removeItem('dgg_refresh');
-    localStorage.removeItem('dgg_role');
-    const isStaff = window.location.pathname.startsWith('/staff');
-    window.location.href = isStaff ? '/internal/login' : '/signin';
-};
 
 // RESPONSE INTERCEPTOR: Handle global errors like 401 Unauthorized
 apiClient.interceptors.response.use(
@@ -68,63 +55,16 @@ apiClient.interceptors.response.use(
 
         return response.data;
     },
-    async (error) => {
-        const originalRequest = error.config;
-
-        // Handle 401: attempt token refresh before giving up
-        if (error.response?.status === 401 && !originalRequest._retry) {
-            // Don't try to refresh if we're already on a login page or this is the refresh call itself
-            const isAuthEndpoint = originalRequest.url?.includes('/auth/login/') || originalRequest.url?.includes('/auth/token/refresh/');
-            if (isAuthEndpoint) {
-                redirectToLogin();
-                return Promise.reject(error);
-            }
-
-            if (isRefreshing) {
-                // Queue this request until the refresh completes
-                return new Promise((resolve) => {
-                    subscribeTokenRefresh((newToken: string) => {
-                        originalRequest.headers.Authorization = `Bearer ${newToken}`;
-                        resolve(apiClient(originalRequest));
-                    });
-                });
-            }
-
-            originalRequest._retry = true;
-            isRefreshing = true;
-
-            const refreshToken = localStorage.getItem('dgg_refresh');
-            if (!refreshToken) {
-                isRefreshing = false;
-                redirectToLogin();
-                return Promise.reject(error);
-            }
-
-            try {
-                const refreshResponse = await axios.post(`${BASE_URL}/auth/token/refresh/`, {
-                    refresh: refreshToken,
-                });
-
-                // Handle our api_response wrapper
-                const responseData = refreshResponse.data?.data || refreshResponse.data;
-                const newAccessToken = responseData?.access;
-
-                if (!newAccessToken) {
-                    throw new Error('No access token in refresh response');
-                }
-
-                localStorage.setItem('dgg_token', newAccessToken);
-                apiClient.defaults.headers.common['Authorization'] = `Bearer ${newAccessToken}`;
-                onTokenRefreshed(newAccessToken);
-                isRefreshing = false;
-
-                originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
-                return apiClient(originalRequest);
-            } catch (refreshError) {
-                isRefreshing = false;
-                refreshSubscribers = [];
-                redirectToLogin();
-                return Promise.reject(refreshError);
+    (error) => {
+        // Handle 401: Unauthorized (Token expired or missing)
+        if (error.response && error.response.status === 401) {
+            console.error('Unauthorized session detected. Redirecting to login.');
+            
+            // Avoid infinite redirect loop if already on login page
+            if (!window.location.pathname.includes('/signin') && !window.location.pathname.includes('/internal/login')) {
+                localStorage.removeItem('dgg_token');
+                localStorage.removeItem('dgg_role');
+                window.location.href = window.location.pathname.startsWith('/staff') ? '/internal/login' : '/signin';
             }
         }
         
@@ -136,174 +76,178 @@ apiClient.interceptors.response.use(
     }
 );
 
-// The axios interceptor unwraps the response body at runtime, so all API calls
-// resolve to `any` (the actual data) rather than AxiosResponse. We cast the
-// return type here so TypeScript agrees with what the interceptor produces.
-type ApiPromise<T = any> = Promise<T>;
-
 class API {
     // Auth
-    static login(data: { email: string; password: string }): ApiPromise {
+    static login(data: { email: string; password: string }) {
         return apiClient.post('/auth/login/', {
             email: data.email,
             password: data.password
-        }) as ApiPromise;
+        });
     }
 
-    static register(data: any): ApiPromise {
+    static register(data: any) {
         const payload = {
             email: data.email,
             password: data.password,
             full_name: `${data.firstName} ${data.lastName}`,
             phone: data.phone || '',
-            // role is intentionally omitted — backend forces 'student'
+            role: data.role || 'student',
             dob: data.dob || '',
             beneficiary_number: data.beneficiaryNo || '',
             treaty_number: data.treatyNum || ''
         };
-        return apiClient.post('/auth/register/', payload) as ApiPromise;
+        return apiClient.post('/auth/register/', payload);
     }
 
-    static getMe(): ApiPromise<{ full_name: string; role: string; email: string; beneficiary_number?: string; [key: string]: any }> {
-        return apiClient.get('/auth/me/') as ApiPromise;
+    static getMe() {
+        return apiClient.get('/auth/me/');
     }
 
-    static updateMe(data: any): ApiPromise {
-        return apiClient.put('/auth/me/', data) as ApiPromise;
+    static updateMe(data: any) {
+        return apiClient.put('/auth/me/', data);
     }
 
     // Programs
-    static getPrograms(): ApiPromise<any[]> {
-        return apiClient.get('/programs/') as ApiPromise;
+    static getPrograms() {
+        return apiClient.get('/programs/');
     }
 
-    static getProgram(id: number): ApiPromise {
-        return apiClient.get(`/programs/${id}/`) as ApiPromise;
+    static getProgram(id: number) {
+        return apiClient.get(`/programs/${id}/`);
     }
 
     // Forms
-    static getForms(): ApiPromise<any[]> {
-        return apiClient.get('/forms/forms/') as ApiPromise;
+    static getForms() {
+        return apiClient.get('/forms/forms/');
     }
 
-    static getForm(id: number): ApiPromise {
-        return apiClient.get(`/forms/forms/${id}/`) as ApiPromise;
+    static getForm(id: number) {
+        return apiClient.get(`/forms/forms/${id}/`);
     }
 
-    static submitForm(formId: number, answers: any[] | FormData): ApiPromise {
-        const headers = answers instanceof FormData ? { 'Content-Type': 'multipart/form-data' } : {};
+    static submitForm(formId: number, answers: any[] | FormData) {
+        // Remove manual Content-Type: browser will set it with the correct boundary for FormData
         return apiClient.post(`/forms/forms/${formId}/submit/`, 
-            answers instanceof FormData ? answers : { answers },
-            { headers }
-        ) as ApiPromise;
+            answers instanceof FormData ? answers : { answers }
+        );
     }
 
     // Submissions
-    static getSubmissions(): ApiPromise<any[]> {
-        return apiClient.get('/forms/submissions/') as ApiPromise;
+    static getSubmissions() {
+        return apiClient.get('/forms/submissions/');
     }
 
-    static getSubmission(id: number): ApiPromise {
-        return apiClient.get(`/forms/submissions/${id}/`) as ApiPromise;
+    static getSubmission(id: number) {
+        return apiClient.get(`/forms/submissions/${id}/`);
     }
 
-    static updateSubmissionStatus(id: number, status: string, additionalData: any = {}): ApiPromise {
-        return apiClient.put(`/forms/submissions/${id}/status/`, { status, ...additionalData }) as ApiPromise;
+    static updateSubmissionStatus(id: number, status: string, additionalData: any = {}) {
+        return apiClient.put(`/forms/submissions/${id}/status/`, { status, ...additionalData });
     }
 
-    static addSubmissionNote(id: number, text: string): ApiPromise {
-        return apiClient.post(`/forms/submissions/${id}/notes/`, { text }) as ApiPromise;
-    }
-
-    static escalateAppeal(id: number, escalationLevel: string, reason: string = ''): ApiPromise {
-        return apiClient.post(`/forms/submissions/${id}/escalate/`, { escalation_level: escalationLevel, reason }) as ApiPromise;
-    }
-
-    // Policy Endpoints
-    static calculateFunding(stream: string, status: string, dependentCount: number = 0): ApiPromise {
-        return apiClient.post('/forms/calculate-funding/', {
-            stream,
-            status,
-            dependent_count: dependentCount
-        }) as ApiPromise;
-    }
-
-    static validateCompliance(formType: string, submissionData: any): ApiPromise {
-        return apiClient.post('/forms/validate-compliance/', {
-            form_type: formType,
-            submission_data: submissionData
-        }) as ApiPromise;
-    }
-
-    static getPaymentSchedule(submissionId: number): ApiPromise<any[]> {
-        return apiClient.get(`/forms/payment-schedule/?submission_id=${submissionId}`) as ApiPromise;
-    }
-
-    static getFormBTracking(submissionId: number): ApiPromise {
-        return apiClient.get(`/forms/form-b-tracking/?submission_id=${submissionId}`) as ApiPromise;
-    }
-
-    static getDecisionLetter(submissionId: number): ApiPromise {
-        return apiClient.get(`/forms/submissions/${submissionId}/decision-letter/`) as ApiPromise;
-    }
-
-    static approveLateSubmission(submissionId: number): ApiPromise {
-        return apiClient.post(`/forms/submissions/${submissionId}/approve-late/`) as ApiPromise;
-    }
-
-    static escalateAppealToLevel(submissionId: number, escalationLevel: string): ApiPromise {
-        return apiClient.post(`/forms/submissions/${submissionId}/escalate/`, {
-            escalation_level: escalationLevel
-        }) as ApiPromise;
-    }
-
-    static getBudgetStatus(): ApiPromise {
-        return apiClient.get('/forms/budget-status/') as ApiPromise;
+    static addSubmissionNote(id: number, text: string) {
+        return apiClient.post(`/forms/submissions/${id}/notes/`, { text });
     }
 
     // Notifications
-    static getNotifications(): ApiPromise<any[]> {
+    static getNotifications() {
         const isInternal = window.location.pathname.startsWith('/staff');
-        return apiClient.get('/notifications/notifications/', { params: { portal: isInternal ? 'internal' : 'student' } }) as ApiPromise;
+        return apiClient.get('/notifications/notifications/', { params: { portal: isInternal ? 'internal' : 'student' } });
     }
 
-    static markNotificationRead(id: number): ApiPromise {
-        return apiClient.post(`/notifications/notifications/${id}/read/`) as ApiPromise;
+    static markNotificationRead(id: number) {
+        return apiClient.post(`/notifications/notifications/${id}/read/`);
     }
 
-    static markAllNotificationsRead(): ApiPromise {
-        return apiClient.post('/notifications/notifications/read-all/') as ApiPromise;
+    static markAllNotificationsRead() {
+        return apiClient.post('/notifications/notifications/read-all/');
     }
 
     // User Documents
-    static getUserDocuments(): ApiPromise<any[]> {
-        return apiClient.get('/user-documents/') as ApiPromise;
+    static getUserDocuments() {
+        return apiClient.get('/user-documents/');
     }
 
-    static uploadUserDocument(formData: FormData): ApiPromise {
-        return apiClient.post('/user-documents/', formData, {
-            headers: { 'Content-Type': 'multipart/form-data' }
-        }) as ApiPromise;
+    static uploadUserDocument(formData: FormData) {
+        // Remove manual Content-Type header to let axios/browser handle the multipart boundary
+        return apiClient.post('/user-documents/', formData);
     }
 
-    static deleteUserDocument(id: number): ApiPromise {
-        return apiClient.delete(`/user-documents/${id}/`) as ApiPromise;
+    static deleteUserDocument(id: number) {
+        return apiClient.delete(`/user-documents/${id}/`);
     }
 
-    // Dashboard Stats (Admin)
-    static getDashboardStats(): ApiPromise {
-        return apiClient.get('/dashboard/stats/') as ApiPromise;
+    static getDashboardStats() {
+        return apiClient.get('/dashboard/stats/');
+    }
+
+    static getReportStats(fundingType: string = 'all') {
+        return apiClient.get('/dashboard/stats/', { params: { funding_type: fundingType } });
+    }
+
+    static dispatchFinanceReport() {
+        return apiClient.post('/payments/dispatch_report/');
+    }
+
+    // New API Methods
+    static getPayments() {
+        return apiClient.get('/payments/');
+    }
+
+    static issuePayment(data: { application: number; amount: number; payment_type: string; user: number }) {
+        return apiClient.post('/payments/', data);
+    }
+
+    static getAppeals() {
+        return apiClient.get('/appeals/');
+    }
+
+    static submitAppeal(data: { application: number; reason: string }) {
+        return apiClient.post('/appeals/', data);
+    }
+
+    static requestMoreInfo(id: number, notes: string = 'Staff requested more information.') {
+        return apiClient.put(`/forms/submissions/${id}/status/`, { 
+            status: 'more_info_required', 
+            notes 
+        });
+    }
+
+    static generateShareLink(applicationId: number) {
+        // Since we are using Submission ID in current frontend context
+        return apiClient.post(`/forms/submissions/${applicationId}/share/`);
+    }
+
+    static getSharedApplication(token: string) {
+        return apiClient.get(`/shared-view/view/${token}/`);
+    }
+
+    // Policy Settings
+    static getPolicySettings() {
+        return apiClient.get('/policy/all_settings/');
+    }
+
+    static updatePolicySetting(category: string, data: any) {
+        if (category === 'bulk') {
+            return apiClient.post('/policy/bulk_update/', data);
+        }
+        return apiClient.post(`/policy/${category}/update/`, data);
     }
 
     // Support for complex wizards
-    static async submitApplication(data: any): ApiPromise {
-        const forms = await this.getForms();
-        // Use exact case-insensitive match to avoid fuzzy title collisions
-        const form = forms.find((f: any) => f.title.toLowerCase() === data.form_type.toLowerCase())
-            ?? forms.find((f: any) => f.title.toLowerCase().includes(data.form_type.toLowerCase()));
+    static async submitApplication(data: any) {
+        const forms = await this.getForms() as unknown as any[];
+        // More robust matching: strip spaces and compare lowercase
+        const normalize = (s: string) => s.toLowerCase().replace(/\s+/g, '');
+        const target = normalize(data.form_type);
+        
+        const form = forms.find((f: any) => {
+            const title = normalize(f.title);
+            return title.includes(target) || target.includes(title);
+        });
         
         if (!form) {
-            throw new Error(`Form template '${data.form_type}' not found. Available forms: ${forms.map((f: any) => f.title).join(', ')}`);
+            throw new Error(`Form template '${data.form_type}' not found. Registered forms: ${forms.map(f => f.title).join(', ')}`);
         }
 
         const answers = data.form_data instanceof FormData 
@@ -311,6 +255,10 @@ class API {
             : this.mapFormDataToAnswers(data.form_data);
 
         return this.submitForm(form.id, answers);
+    }
+
+    static escalateAppeal(id: number, escalation_level: string, reason: string) {
+        return apiClient.post(`/forms/submissions/${id}/escalate/`, { escalation_level, reason });
     }
 
     private static mapFormDataToAnswers(formData: any) {

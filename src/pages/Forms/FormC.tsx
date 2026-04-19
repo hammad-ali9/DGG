@@ -10,7 +10,7 @@ interface FormCProps {
   onUpdateInfo?: () => void;
 }
 
-const FormC: React.FC<FormCProps> = ({ profile, onBack, onComplete, onUpdateInfo }) => {
+const FormC: React.FC<FormCProps> = ({ profile, onBack, onComplete }) => {
   const [currentStep, setCurrentStep] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -43,7 +43,11 @@ const FormC: React.FC<FormCProps> = ({ profile, onBack, onComplete, onUpdateInfo
         fullName: prev.fullName || profile.full_name || '',
         beneficiaryNumber: prev.beneficiaryNumber || profile.beneficiary_number || '',
         email: prev.email || profile.email || '',
-        phone: prev.phone || profile.phone || ''
+        phone: prev.phone || profile.phone || '',
+        institution: prev.institution || profile.institution_name || '',
+        program: prev.program || profile.program_credential || '',
+        courseLoad: prev.courseLoad || profile.enrollment_status || 'Full-Time',
+        dependents: prev.dependents || String(profile.num_dependents || '0')
       }));
     }
   }, [profile]);
@@ -61,14 +65,6 @@ const FormC: React.FC<FormCProps> = ({ profile, onBack, onComplete, onUpdateInfo
     { id: 2, label: 'Documents & Declaration' }
   ];
 
-  // BUG 5: Validation Logic
-  const canGoNext = () => {
-    if (currentStep === 1) {
-      return formData.institution && formData.program;
-    }
-    return true;
-  };
-
   const canSubmit = () => {
     return (
       formData.declarationConfirmed && 
@@ -76,22 +72,6 @@ const FormC: React.FC<FormCProps> = ({ profile, onBack, onComplete, onUpdateInfo
       selectedFiles.transcripts && 
       selectedFiles.enrollment
     );
-  };
-
-  const handleNext = () => {
-    if (currentStep < 2) {
-      if (!canGoNext()) {
-        setError('Please fill in all required fields marked with *');
-        return;
-      }
-      setError(null);
-      setCurrentStep(currentStep + 1);
-    }
-  };
-
-  const handleBack = () => {
-    if (currentStep > 1) setCurrentStep(currentStep - 1);
-    else onBack();
   };
 
   // BUG 4: Connected Submission Flow
@@ -122,7 +102,11 @@ const FormC: React.FC<FormCProps> = ({ profile, onBack, onComplete, onUpdateInfo
 
       // Append in indexed format for backend nested serializer
       answers.forEach((ans, i) => {
-        submissionData.append(`answers[${i}]field_label`, ans.field_label);
+        let label = ans.field_label;
+        if (label === 'Course Load') label = 'Enrollment Status';
+        if (label === 'Dependents') label = 'Dependent Count';
+        
+        submissionData.append(`answers[${i}]field_label`, label);
         submissionData.append(`answers[${i}]answer_text`, ans.answer_text);
       });
 
@@ -146,6 +130,33 @@ const FormC: React.FC<FormCProps> = ({ profile, onBack, onComplete, onUpdateInfo
     }
   };
 
+  const canGoNext = () => {
+    if (currentStep === 1) {
+      return formData.fullName && formData.institution && formData.program;
+    }
+    if (currentStep === 2) {
+      return formData.signature && selectedFiles.transcripts && selectedFiles.enrollment;
+    }
+    return true;
+  };
+
+  const handleNext = () => {
+    if (!canGoNext()) {
+      setError(currentStep === 1 
+        ? 'Please fill in all required student and program information.' 
+        : 'Please sign and upload your transcripts and proof of enrollment.'
+      );
+      return;
+    }
+    setError(null);
+    if (currentStep < 2) setCurrentStep(currentStep + 1);
+  };
+
+  const handleBack = () => {
+    if (currentStep > 1) setCurrentStep(currentStep - 1);
+    else onBack();
+  };
+
   if (isSubmitted) {
     return (
       <div className="wizard-root fade-in">
@@ -155,7 +166,7 @@ const FormC: React.FC<FormCProps> = ({ profile, onBack, onComplete, onUpdateInfo
           </div>
           <h2 style={{ fontSize: '24px', fontWeight: '700', marginBottom: '12px' }}>Renewal Submitted</h2>
           <p style={{ fontSize: '14px', color: '#4a5568', lineHeight: '1.6', maxWidth: '400px', margin: '0 auto 32px' }}>
-            Your Form C has been received. We will verify your transcripts and next-semester enrollment shortly.
+            Your renewal has been received. We will verify your transcripts and next-semester enrollment shortly.
           </p>
           <button className="wizard-btn-next" style={{ margin: '0 auto' }} onClick={() => onComplete()}>
             Back to Dashboard
@@ -167,7 +178,7 @@ const FormC: React.FC<FormCProps> = ({ profile, onBack, onComplete, onUpdateInfo
 
   return (
     <FormWizard
-      title="Form C \u2014 Continuing Student"
+      title="Continuing Student"
       subtitle={currentStep === 1
         ? "Review your current enrollment on file and confirm accuracy."
         : "Upload required semester records and sign the declaration."
@@ -178,7 +189,7 @@ const FormC: React.FC<FormCProps> = ({ profile, onBack, onComplete, onUpdateInfo
       onBack={handleBack}
       onNext={handleNext}
       isLastStep={currentStep === 2}
-      nextDisabled={isLoading}
+      nextDisabled={!canGoNext() || isLoading}
       onSubmit={handleSubmit}
     >
       {error && (
@@ -190,7 +201,7 @@ const FormC: React.FC<FormCProps> = ({ profile, onBack, onComplete, onUpdateInfo
       {currentStep === 1 && (
         <div className="fade-in">
           <div style={{ background: '#f0f4ff', border: '1px solid #c0ccf0', borderLeft: '3px solid #1a4aaa', borderRadius: '3px', padding: '10px 12px', fontSize: '10px', color: '#1a4aaa', lineHeight: '1.6', marginBottom: '12px' }}>
-            <strong>Submit each semester to renew your funding.</strong> Form A must be on file. DGG will send Form B to your registrar after receiving this form.
+            <strong>Submit each semester to renew your funding.</strong> Your initial application must be on file. DGG will send enrollment verification to your registrar after receiving this form.
           </div>
 
           <div style={{ background: '#fff', border: '1px solid #e0e0e0', borderRadius: '4px', marginBottom: '14px', padding: '16px' }}>

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import API from '../api/client';
 import '../styles/dashboard.css';
 import FormA from './Forms/FormA';
@@ -9,8 +9,6 @@ import FormE from './Forms/FormE';
 import FormF from './Forms/FormF';
 import FormG from './Forms/FormG';
 import FormH from './Forms/FormH';
-import FormGTB from './Forms/FormGTB';
-import HardshipBursary from './Forms/HardshipBursary';
 import AcademicScholarship from './Forms/AcademicScholarship';
 import StudentProfile from './StudentProfile';
 
@@ -29,8 +27,6 @@ type DashboardView =
   | 'formF' 
   | 'formG' 
   | 'formH' 
-  | 'formGTB'
-  | 'hardship' 
   | 'scholarship';
 
 // SVG Icons for professional look
@@ -71,18 +67,33 @@ const Icons = {
 };
 
 const Dashboard: React.FC = () => {
-  const [currentView, setCurrentView] = useState<DashboardView>('dashboard');
-  // const [isNotificationsRead] = useState(false); // Removed legacy
-  const [notifications, setNotifications] = useState<any[]>([]);
-  const [showToast, setShowToast] = useState<string | null>(null);
-  const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(null);
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
+  const [currentView, setCurrentView] = useState<DashboardView>('dashboard');
+
+  // Sync currentView with URL path
+  useEffect(() => {
+    const segments = location.pathname.split('/').filter(Boolean);
+    if (segments.length > 1) {
+      const view = segments[1] as DashboardView;
+      setCurrentView(view);
+    } else {
+      setCurrentView('dashboard');
+    }
+  }, [location.pathname]);
+
+  const [showToast, setShowToast] = useState<string | null>(null);
+  const [errorPopup, setErrorPopup] = useState<string | null>(null);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(null);
+  const [notifications, setNotifications] = useState<any[]>([]);
   const [applications, setApplications] = useState<any[]>([]);
   const [profile, setProfile] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [documents, setDocuments] = useState<any[]>([]);
   const [isUploading, setIsUploading] = useState(false);
+
+  const [payments, setPayments] = useState<any[]>([]);
 
   const fetchDashboardData = async () => {
     try {
@@ -91,6 +102,9 @@ const Dashboard: React.FC = () => {
       
       const userResp = await API.getMe();
       setProfile(userResp);
+
+      const payResp = await API.getPayments() as any;
+      setPayments(Array.isArray(payResp) ? payResp : []);
       
       const notifsResp = await API.getNotifications();
       setNotifications(Array.isArray(notifsResp) ? notifsResp : []);
@@ -107,7 +121,7 @@ const Dashboard: React.FC = () => {
   // ── POLLING FOR REAL-TIME UPDATES ──
   useEffect(() => {
     fetchDashboardData();
-    const interval = setInterval(fetchDashboardData, 30000); // 30-second polling
+    const interval = setInterval(fetchDashboardData, 5000); // 5-second polling
     return () => clearInterval(interval);
   }, []);
 
@@ -129,21 +143,23 @@ const Dashboard: React.FC = () => {
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    // Reset input so same file can be re-selected
+    e.target.value = '';
 
     const formData = new FormData();
     formData.append('file', file);
     formData.append('name', file.name);
-    // Optional: add category if desired
     formData.append('category', 'User Upload');
 
     setIsUploading(true);
     try {
       await API.uploadUserDocument(formData);
-      setShowToast('Document uploaded successfully');
+      setShowToast('✓ Document uploaded successfully');
       fetchDocuments();
     } catch (err: any) {
       console.error('Upload failed:', err);
-      setShowToast('Upload failed: ' + (err.message || 'Unknown error'));
+      const msg = err?.message || err?.data?.detail || 'An error occurred while uploading. Please try again.';
+      setErrorPopup(msg);
     } finally {
       setIsUploading(false);
     }
@@ -197,7 +213,7 @@ const Dashboard: React.FC = () => {
 
   const getJourneyStage = () => {
     if (applications.length === 0) {
-      return { title: '1. Getting Started', milestone: '📄 Start Form A to begin', pips: [true, false, false] };
+      return { title: '1. Getting Started', milestone: '📄 Start Admission Application to begin', pips: [true, false, false] };
     }
     
     const latest = applications[0]; // Ordered by -submitted_at in backend
@@ -225,15 +241,15 @@ const Dashboard: React.FC = () => {
     }
   }, [showToast]);
 
-  const handleFormComplete = (label: string) => {
-    setShowToast(`✓ ${label} submitted · You will receive an email confirmation`);
-    setCurrentView('applications');
+  const handleFormComplete = (_label?: string) => {
+    setShowToast(`✓ Submission successful · You will receive an email confirmation`);
+    navigate('/dashboard/applications');
     setIsMobileMenuOpen(false);
     fetchDashboardData();
   };
 
   const handleNavClick = (view: DashboardView) => {
-    setCurrentView(view);
+    navigate(`/dashboard/${view}`);
     setIsMobileMenuOpen(false);
   };
 
@@ -274,24 +290,22 @@ const Dashboard: React.FC = () => {
         <div className="sidebar-divider"></div>
 
         <div className="sidebar-section-title">Applications</div>
-        {renderSidebarNav('formA', 'Form A — New Student', <Icons.Files />)}
-        {renderSidebarNav('formC', 'Form C — Continuing', <Icons.Files />)}
-        {renderSidebarNav('formD', 'Form D — Change of Info', <Icons.Files />)}
+        {renderSidebarNav('formA', 'Admission Application', <Icons.Files />)}
+        {renderSidebarNav('formC', 'Continuing Funding', <Icons.Files />)}
+        {renderSidebarNav('formD', 'Information Update', <Icons.Files />)}
 
         <div className="sidebar-divider"></div>
 
         <div className="sidebar-section-title">Claims</div>
-        {renderSidebarNav('formE', 'Form E — Graduation Award', <Icons.Files />)}
-        {renderSidebarNav('formF', 'Form F — Practicum Award', <Icons.Files />)}
-        {renderSidebarNav('formG', 'Form G — Travel Claim', <Icons.Files />)}
-        {renderSidebarNav('formGTB', 'Form GTB — Graduation Travel Bursary', <Icons.Files />)}
-        {renderSidebarNav('formH', 'Form H — Appeal', <Icons.Files />)}
+        {renderSidebarNav('formE', 'Travel Claim', <Icons.Files />)}
+        {renderSidebarNav('formF', 'Practicum Report', <Icons.Files />)}
+        {renderSidebarNav('formG', 'Graduation Award', <Icons.Files />)}
+        {renderSidebarNav('formH', 'Appeal Request', <Icons.Files />)}
 
         <div className="sidebar-divider"></div>
 
         <div className="sidebar-section-title">Special</div>
         {renderSidebarNav('scholarship', 'Academic Scholarship', <Icons.Files />)}
-        {renderSidebarNav('hardship', 'Hardship Bursary', <Icons.Files />)}
 
         <div className="sidebar-divider"></div>
 
@@ -303,6 +317,29 @@ const Dashboard: React.FC = () => {
       </div>
 
       <div className="dashboard-shell">
+        {/* Status Section */}
+        <section className="dashboard-section">
+          {payments.length > 0 && (
+            <div style={{ marginBottom: '32px', background: '#f0fdf4', border: '1px solid #bbf7d0', padding: '24px', borderRadius: '16px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                <h3 style={{ fontSize: '18px', fontWeight: '800', color: '#166534', margin: 0 }}>Approved Funding</h3>
+                <div style={{ fontSize: '24px', fontWeight: '900', color: '#166534' }}>
+                  ${payments.reduce((sum, p) => sum + parseFloat(p.amount), 0).toLocaleString()}
+                </div>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '12px' }}>
+                {payments.map((pay, i) => (
+                  <div key={i} style={{ background: 'white', padding: '12px', borderRadius: '10px', border: '1px solid #dcfce7' }}>
+                    <div style={{ fontSize: '10px', fontWeight: '800', color: '#166534', textTransform: 'uppercase' }}>{pay.payment_type}</div>
+                    <div style={{ fontSize: '16px', fontWeight: '800', color: '#111', margin: '4px 0' }}>${parseFloat(pay.amount).toLocaleString()}</div>
+                    <div style={{ fontSize: '11px', color: '#22c55e' }}>Approved · {new Date(pay.date_issued).toLocaleDateString()}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </section>
+
         {/* Top Nav */}
         <div className="top-nav">
           <div className="top-nav-left">
@@ -345,10 +382,13 @@ const Dashboard: React.FC = () => {
                         <div className="welcome-icon-wrap"><Icons.Info /></div>
                         <div className="welcome-text">
                           <div className="welcome-title">Welcome to the DGG Student Portal</div>
-                          <div className="welcome-desc">To begin, please establish your student file by completing <strong>Form A — New Student Application</strong> below.</div>
+                          <div className="welcome-desc">To begin, please establish your student file by completing the <strong>Admission Application</strong> below. If your information has changed, please report it immediately.</div>
                         </div>
                       </div>
-                      <button className="btn-primary welcome-btn" onClick={() => setCurrentView('formA')}>Get Started</button>
+                      <div style={{ display: 'flex', gap: '12px' }}>
+                        <button className="btn-primary welcome-btn" onClick={() => setCurrentView('formA')}>Get Started</button>
+                        <button className="btn-ghost welcome-btn" style={{ borderColor: '#bee3f8', color: '#2b6cb0', fontWeight: '700' }} onClick={() => setCurrentView('formD')}>Report a Change</button>
+                      </div>
                     </div>
 
                     <div className="kpi-row">
@@ -402,10 +442,10 @@ const Dashboard: React.FC = () => {
                         <div className="form-card primary-card active-step" onClick={() => setCurrentView('formA')}>
                           <div className="form-card-inner">
                             <div className="form-card-header">
-                              <span className="form-tag">Form A</span>
+                              <span className="form-tag">New File</span>
                               <span className="recommended-tag"><Icons.Star /> RECOMMENDED NEXT STEP</span>
                             </div>
-                            <div className="form-card-title">New Student Application</div>
+                            <div className="form-card-title">Admission Application</div>
                             <div className="form-card-desc">Your gateway to all DGG funding. Complete this first to map your eligibility.</div>
                             <div style={{ fontSize: '9px', color: '#718096', marginBottom: '12px' }}>Required once per program · Establishes your stream</div>
                             <button className="btn-auth-primary form-btn">Start Application &nbsp;<Icons.ChevronRight /></button>
@@ -414,12 +454,12 @@ const Dashboard: React.FC = () => {
                         <div className="form-card" style={{ borderLeft: '3px solid #3182ce', opacity: 0.9 }}>
                           <div className="form-card-inner">
                             <div className="form-card-header">
-                              <span className="form-tag" style={{ background: '#ebf8ff', color: '#2b6cb0', border: '1px solid #bee3f8' }}>Form B</span>
+                              <span className="form-tag" style={{ background: '#ebf8ff', color: '#2b6cb0', border: '1px solid #bee3f8' }}>Enrolment</span>
                               <span style={{ fontSize: '8px', color: '#dd6b20', fontWeight: '700' }}>⏳ Tracking Active</span>
                             </div>
-                            <div className="form-card-title">Enrollment Confirmation</div>
-                            <div className="form-card-desc">Registrar verification. Generated automatically after Form A is submitted.</div>
-                            <div style={{ fontSize: '9px', color: '#718096', marginBottom: '12px' }}>Auto-generated from Form A · Sent to Registrar</div>
+                            <div className="form-card-title">Enrolment Verification</div>
+                            <div className="form-card-desc">Registrar verification. Generated automatically after your application is submitted.</div>
+                            <div style={{ fontSize: '9px', color: '#718096', marginBottom: '12px' }}>Auto-generated from application · Sent to Registrar</div>
                             <button className="btn-ghost form-btn">Manage Tracking &nbsp;<Icons.ChevronRight /></button>
                           </div>
                         </div>
@@ -518,11 +558,11 @@ const Dashboard: React.FC = () => {
                             </tr>
                           </thead>
                           <tbody>
-                            <tr><td>First time applying for funding</td><td>Complete <strong>Form A</strong></td></tr>
-                            <tr><td>Returning for a new semester</td><td>Complete <strong>Form C</strong></td></tr>
-                            <tr><td>Changed school or program</td><td>Complete <strong>Form D</strong></td></tr>
-                            <tr><td>Claiming travel reimbursement</td><td>Complete <strong>Form E</strong></td></tr>
-                            <tr><td>Reporting graduation</td><td>Complete <strong>Form G</strong></td></tr>
+                            <tr><td>First time applying for funding</td><td>Complete <strong>Admission Application</strong></td></tr>
+                            <tr><td>Returning for a new semester</td><td>Complete <strong>Continuing Funding</strong></td></tr>
+                            <tr><td>Changed school or program</td><td>Complete <strong>Information Update</strong></td></tr>
+                            <tr><td>Claiming travel reimbursement</td><td>Complete <strong>Travel Claim</strong></td></tr>
+                            <tr><td>Reporting graduation</td><td>Complete <strong>Graduation Award</strong></td></tr>
                           </tbody>
                         </table>
                       </div>
@@ -569,7 +609,7 @@ const Dashboard: React.FC = () => {
                           className={`notif-item ${!notif.is_read ? 'unread' : ''}`}
                           onClick={() => handleMarkRead(notif.id)}
                         >
-                          <div className="notif-icon"><Icons.Bell /></div>
+                          <div className="notif-icon-wrap"><Icons.Bell /></div>
                           <div className="notif-body">
                             <div className="notif-title">{notif.title}</div>
                             <div className="notif-detail">{notif.message}</div>
@@ -696,9 +736,8 @@ const Dashboard: React.FC = () => {
                     <div className="sec-card">
                       <div className="sec-head"><span className="sec-title">Frequently Asked Questions</span></div>
                       {[
-                        { q: "When is my application due?", a: "Deadlines are: Fall (Aug 1), Winter (Dec 1), Spring (Apr 1), and Summer (Jun 1). Late applications are not guaranteed funding." },
-                        { q: "What is Form B?", a: "Form B is enrollment verification from your registrar. DGG requests this automatically once your Form A or C is submitted." },
-                        { q: "How do I claim travel?", a: "Use Form E. You must submit within 30 days of travel and include all receipts." }
+                        { q: "How is my enrollment verified?", a: "Enrollment verification is requested from your registrar automatically once your application or renewal is submitted." },
+                        { q: "How do I claim travel?", a: "Submit a Travel Claim within 30 days of travel and include all receipts." }
                       ].map((item, i) => (
                         <div className="faq-item" key={i}>
                           <div className="faq-q" onClick={() => setOpenFaqIndex(openFaqIndex === i ? null : i)}>
@@ -715,86 +754,71 @@ const Dashboard: React.FC = () => {
                 </div>
               )}
 
-              {/* \u2500\u2500 FORM A VIEW \u2500\u2500 */}
+              {/* ── ADMISSION APPLICATION VIEW ── */}
               {currentView === 'formA' && (
                 <FormA 
                   profile={profile}
                   onBack={() => setCurrentView('dashboard')} 
-                  onComplete={() => handleFormComplete('Form A')} 
+                  onComplete={() => handleFormComplete('Admission Application')} 
                 />
               )}
 
-              {/* \u2500\u2500 FORM C VIEW \u2500\u2500 */}
+              {/* ── CONTINUING FUNDING VIEW ── */}
               {currentView === 'formC' && (
                 <FormC 
                   profile={profile}
                   onBack={() => setCurrentView('dashboard')} 
-                  onComplete={() => handleFormComplete('Form C')} 
+                  onComplete={() => handleFormComplete('Continuing Funding')} 
                 />
               )}
 
-              {/* \u2500\u2500 FORM D VIEW \u2500\u2500 */}
+              {/* ── INFORMATION UPDATE VIEW ── */}
               {currentView === 'formD' && (
                 <FormD 
                   profile={profile}
                   onBack={() => setCurrentView('dashboard')} 
-                  onComplete={() => handleFormComplete('Form D')} 
+                  onComplete={() => handleFormComplete('Information Update')} 
+                  onNavigate={(view: any) => setCurrentView(view)}
                 />
               )}
 
-              {/* \u2500\u2500 FORM E VIEW \u2500\u2500 */}
+              {/* ── TRAVEL CLAIM VIEW ── */}
               {currentView === 'formE' && (
                 <FormE 
                   profile={profile}
                   onBack={() => setCurrentView('dashboard')} 
-                  onComplete={() => handleFormComplete('Form E')} 
+                  onComplete={() => handleFormComplete('Travel Claim')} 
                 />
               )}
 
-              {/* \u2500\u2500 FORM F VIEW \u2500\u2500 */}
+              {/* ── PRACTICUM REPORT VIEW ── */}
               {currentView === 'formF' && (
                 <FormF 
                   profile={profile}
                   onBack={() => setCurrentView('dashboard')} 
-                  onComplete={() => handleFormComplete('Form F')} 
+                  onComplete={() => handleFormComplete('Practicum Report')} 
                 />
               )}
 
-              {/* \u2500\u2500 FORM G VIEW \u2500\u2500 */}
+              {/* ── GRADUATION AWARD VIEW ── */}
               {currentView === 'formG' && (
                 <FormG 
                   profile={profile}
                   onBack={() => setCurrentView('dashboard')} 
-                  onComplete={() => handleFormComplete('Form G')} 
+                  onComplete={() => handleFormComplete('Graduation Award')} 
                 />
               )}
 
-              {/* \u2500\u2500 FORM GTB VIEW \u2500\u2500 */}
-              {currentView === 'formGTB' && (
-                <FormGTB 
-                  profile={profile}
-                  onBack={() => setCurrentView('dashboard')} 
-                  onComplete={() => handleFormComplete('Form GTB')} 
-                />
-              )}
-
-              {/* \u2500\u2500 FORM H VIEW \u2500\u2500 */}
+              {/* ── APPEAL REQUEST VIEW ── */}
               {currentView === 'formH' && (
                 <FormH 
                   profile={profile}
                   onBack={() => setCurrentView('dashboard')} 
-                  onComplete={() => handleFormComplete('Form H')} 
+                  onComplete={() => handleFormComplete('Appeal Request')} 
                 />
               )}
 
-              {/* \u2500\u2500 HARDSHIP VIEW \u2500\u2500 */}
-              {currentView === 'hardship' && (
-                <HardshipBursary 
-                  profile={profile}
-                  onBack={() => setCurrentView('dashboard')} 
-                  onComplete={() => handleFormComplete('Hardship Bursary')} 
-                />
-              )}
+              {/* \u2500\u2500 ACADEMIC SCHOLARSHIP VIEW \u2500\u2500 */}
 
               {/* \u2500\u2500 SCHOLARSHIP VIEW \u2500\u2500 */}
               {currentView === 'scholarship' && (
@@ -814,9 +838,21 @@ const Dashboard: React.FC = () => {
           </div>
         </div>
 
-        {/* Toast */}
-        <div className={`toast ${showToast ? 'show' : ''}`}>
-          {showToast}
+        {/* Error Popup Modal */}
+        {errorPopup && (
+          <div className="error-popup-overlay" onClick={() => setErrorPopup(null)}>
+            <div className="error-popup" onClick={e => e.stopPropagation()}>
+              <div className="error-popup-icon">⚠️</div>
+              <div className="error-popup-title">Upload Failed</div>
+              <div className="error-popup-message">{errorPopup}</div>
+              <button className="error-popup-close" onClick={() => setErrorPopup(null)}>Dismiss</button>
+            </div>
+          </div>
+        )}
+
+        {/* Toast Popup */}
+        <div className={`toast ${showToast ? 'show' : ''} ${showToast && !showToast.includes('fail') && !showToast.includes('Error') && !showToast.includes('DENIED') ? 'toast-success' : showToast ? 'toast-error' : ''}`}>
+          {showToast && showToast.includes('fail') ? '✕ ' : showToast ? '✓ ' : ''}{showToast}
         </div>
       </div>
     );

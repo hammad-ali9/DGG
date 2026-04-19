@@ -12,11 +12,50 @@ class ProfileSerializer(serializers.ModelSerializer):
         fields = ('beneficiary_number', 'indian_status', 'phone_number', 'mailing_address', 'is_sfa_active', 'profile_completeness', 'preferred_name', 'date_of_birth', 'gender', 'pronouns', 'alt_phone_number')
 
 class UserSerializer(serializers.ModelSerializer):
-    profile = ProfileSerializer(read_only=True)
+    # Flatten profile fields onto the user object for easier frontend consumption
+    preferred_name = serializers.CharField(source='profile.preferred_name', required=False, allow_blank=True)
+    mailing_address = serializers.CharField(source='profile.mailing_address', required=False, allow_blank=True)
+    town_city = serializers.CharField(source='profile.town_city', required=False, allow_blank=True)
+    postal_code = serializers.CharField(source='profile.postal_code', required=False, allow_blank=True)
+    indian_status = serializers.CharField(source='profile.indian_status', required=False, allow_blank=True)
+    is_sfa_active = serializers.BooleanField(source='profile.is_sfa_active', required=False)
+    gender = serializers.CharField(source='profile.gender', required=False, allow_blank=True)
+    pronouns = serializers.CharField(source='profile.pronouns', required=False, allow_blank=True)
+    alternate_phone = serializers.CharField(source='profile.alt_phone_number', required=False, allow_blank=True)
+    enrollment_status = serializers.CharField(source='profile.enrollment_status', required=False, allow_blank=True)
+    num_dependents = serializers.IntegerField(source='profile.num_dependents', required=False)
+    
+    # Career/Enrollment fields
+    institute = serializers.CharField(source='profile.institute_name', required=False, allow_blank=True) # Map institute to profile.institute_name
+    institution_name = serializers.CharField(source='profile.institute_name', required=False, allow_blank=True)
+    program_credential = serializers.CharField(source='profile.program_credential', required=False, allow_blank=True)
     
     class Meta:
         model = User
-        fields = ('id', 'username', 'first_name', 'last_name', 'email', 'profile')
+        fields = (
+            'id', 'username', 'first_name', 'last_name', 'full_name', 'email', 'phone', 'dob', 
+            'beneficiary_number', 'preferred_name', 'mailing_address', 'town_city', 
+            'postal_code', 'indian_status', 'is_sfa_active', 'gender', 'pronouns', 
+            'alternate_phone', 'institute', 'institution_name', 'program_credential',
+            'enrollment_status', 'num_dependents'
+        )
+    
+    def update(self, instance, validated_data):
+        profile_data = validated_data.pop('profile', {})
+        
+        # Update User fields
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.save()
+        
+        # Update Profile fields
+        if profile_data:
+            profile, _ = Profile.objects.get_or_create(user=instance)
+            for attr, value in profile_data.items():
+                setattr(profile, attr, value)
+            profile.save()
+            
+        return instance
 
 class DocumentSerializer(serializers.ModelSerializer):
     class Meta:

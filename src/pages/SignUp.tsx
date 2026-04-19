@@ -131,15 +131,33 @@ const SignUp: React.FC = () => {
   });
 
   const normalizeDate = (dateStr: string) => {
-    // Expects DD/MM/YYYY or DD-MM-YYYY or DD.MM.YYYY
-    const parts = dateStr.split(/[\/\-\.]/);
+    if (!dateStr) return dateStr;
+    // Cleanup slashes, dots, dashes and spaces
+    const parts = dateStr.split(/[\/\-\.\s]+/).filter(Boolean);
+    
     if (parts.length === 3) {
-      const [d, m, y] = parts;
-      if (y.length === 4 && m.length <= 2 && d.length <= 2) {
-        return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+      let d, m, y;
+      
+      // Detect year position (start vs end)
+      if (parts[0].length === 4) {
+        // YYYY MM DD
+        [y, m, d] = parts;
+      } else if (parts[2].length === 4) {
+        // DD MM YYYY (Standard for our placeholder)
+        [d, m, y] = parts;
+      } else {
+        // Cannot reliably normalize (e.g. 05-06-07), return as is
+        return dateStr;
       }
+
+      // Format to ISO YYYY-MM-DD for backend
+      const finalY = y;
+      const finalM = m.padStart(2, '0');
+      const finalD = d.padStart(2, '0');
+      
+      return `${finalY}-${finalM}-${finalD}`;
     }
-    return dateStr; // Fallback to raw string
+    return dateStr;
   };
 
   const handleSignUp = async () => {

@@ -7,9 +7,10 @@ interface FormDProps {
   profile?: any;
   onBack: () => void;
   onComplete: () => void;
+  onNavigate: (view: string) => void;
 }
 
-const FormD: React.FC<FormDProps> = ({ profile, onBack, onComplete }) => {
+const FormD: React.FC<FormDProps> = ({ profile, onBack, onComplete, onNavigate }) => {
   const [currentStep, setCurrentStep] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -46,14 +47,20 @@ const FormD: React.FC<FormDProps> = ({ profile, onBack, onComplete }) => {
     sfaLetter: null
   });
 
-  // Fix: Only auto-fill if the fields are currently empty to avoid overwriting user input during polling
+  // Auto-fill sync from profile
   useEffect(() => {
     if (profile) {
       setDetails(prev => ({
         ...prev,
-        address: prev.address || profile.address || '',
         phone: prev.phone || profile.phone || '',
-        email: prev.email || profile.email || ''
+        email: prev.email || profile.email || '',
+        address: prev.address || profile.mailing_address || '',
+        dependentCount: prev.dependentCount || String(profile.num_dependents || ''),
+        dependentAges: prev.dependentAges || profile.dependent_ages || '',
+        institution: prev.institution || profile.institute || profile.institution_name || '',
+        program: prev.program || profile.program_credential || '',
+        status: prev.status || profile.enrollment_status || '',
+        sfaStatus: prev.sfaStatus || profile.financial_assistance_status || ''
       }));
     }
   }, [profile]);
@@ -63,9 +70,9 @@ const FormD: React.FC<FormDProps> = ({ profile, onBack, onComplete }) => {
   };
 
   const steps = [
-    { id: 1, label: 'Select Category' },
-    { id: 2, label: 'Change Details' },
-    { id: 3, label: 'Review & Impact' }
+    { id: 1, label: 'What changed?' },
+    { id: 2, label: 'Details of the change' },
+    { id: 3, label: 'Review & Impact Summary' }
   ];
 
   // BUG 5: Validation
@@ -85,7 +92,30 @@ const FormD: React.FC<FormDProps> = ({ profile, onBack, onComplete }) => {
       return;
     }
     setError(null);
-    if (currentStep < 3) setCurrentStep(currentStep + 1);
+
+    if (currentStep === 1) {
+      // HANDLE REDIRECTIONS
+      // Priority 1: Changed schools or programs -> New Application
+      if (categories.school) {
+        onNavigate('formA');
+        return;
+      }
+      
+      // Priority 2: Profile related changes (Address, Dependents, SFA)
+      // Only redirect if no "Internal" categories (drop, withdraw, other) are selected
+      const hasInternal = categories.drop || categories.withdraw || categories.other;
+      const hasRedirect = categories.contact || categories.dependents || categories.sfa;
+      
+      if (hasRedirect && !hasInternal) {
+        onNavigate('profile');
+        return;
+      }
+      
+      // Otherwise continue to Step 2
+      setCurrentStep(2);
+    } else if (currentStep < 3) {
+      setCurrentStep(currentStep + 1);
+    }
   };
 
   const handleBack = () => {
@@ -179,7 +209,7 @@ const FormD: React.FC<FormDProps> = ({ profile, onBack, onComplete }) => {
 
   return (
     <FormWizard
-      title="Form D \u2014 Change of Information"
+      title="Change of Information"
       subtitle={currentStep === 1
         ? "Something changed in your school or life? Pick the categories that apply."
         : currentStep === 2
@@ -192,7 +222,7 @@ const FormD: React.FC<FormDProps> = ({ profile, onBack, onComplete }) => {
       onBack={handleBack}
       onNext={handleNext}
       isLastStep={currentStep === 3}
-      nextDisabled={isLoading}
+      nextDisabled={!canGoNext() || isLoading}
       onSubmit={handleSubmit}
     >
       {error && (
@@ -216,15 +246,73 @@ const FormD: React.FC<FormDProps> = ({ profile, onBack, onComplete }) => {
           <div style={{ fontSize: '16px', fontWeight: '700', color: '#111', marginBottom: '8px' }}>Something changed in my school or life.</div>
           <p style={{ fontSize: '12px', color: '#666', marginBottom: '20px' }}>Pick one or more categories that apply to your current situation:</p>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '24px' }}>
-            <CategoryLabel active={categories.drop} onClick={() => handleToggleCategory('drop')} label="Dropped / added courses (load changed)" />
-            <CategoryLabel active={categories.withdraw} onClick={() => handleToggleCategory('withdraw')} label="Withdrew from my program (temp/perm)" />
-            <CategoryLabel active={categories.school} onClick={() => handleToggleCategory('school')} label="Changed schools or programs" />
-            <CategoryLabel active={categories.dependents} onClick={() => handleToggleCategory('dependents')} label="My dependents changed" />
-            <CategoryLabel active={categories.contact} onClick={() => handleToggleCategory('contact')} label="Address or contact details changed" />
-            <CategoryLabel active={categories.sfa} onClick={() => handleToggleCategory('sfa')} label="My SFA / other funding status changed" />
-            <CategoryLabel active={categories.other} onClick={() => handleToggleCategory('other')} label="Something else happened" span2 />
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '24px' }}>
+            <CategoryCard 
+              active={categories.drop} 
+              onClick={() => handleToggleCategory('drop')} 
+              label="Dropped / added courses (load changed)" 
+              sub="Staff will be notified and your funding will be recalculated."
+            />
+            <CategoryCard 
+              active={categories.withdraw} 
+              onClick={() => handleToggleCategory('withdraw')} 
+              label="Withdrew from my program (temp/perm)" 
+              sub="Reporting a temporary or permanent withdrawal from study."
+            />
+            <CategoryCard 
+              active={categories.school} 
+              onClick={() => handleToggleCategory('school')} 
+              label="Changed schools or programs" 
+              sub="Policy requires a new application for program changes. Redirects to main application."
+            />
+            <CategoryCard 
+              active={categories.dependents} 
+              onClick={() => handleToggleCategory('dependents')} 
+              label="My dependents changed" 
+              sub="Add or remove dependents from your file. Redirects to Profile."
+            />
+            <CategoryCard 
+              active={categories.contact} 
+              onClick={() => handleToggleCategory('contact')} 
+              label="Address or contact info changes" 
+              sub="Update your residential address or phone. Redirects to Profile."
+            />
+            <CategoryCard 
+              active={categories.sfa} 
+              onClick={() => handleToggleCategory('sfa')} 
+              label="SFA status changed" 
+              sub="Updating your SFA / 3rd party funding status. Redirects to Profile."
+            />
+            <CategoryCard 
+              active={categories.other} 
+              onClick={() => handleToggleCategory('other')} 
+              label="Something else happened" 
+              sub="Describe an unusual situation to your Student Support Worker."
+              span2 
+            />
           </div>
+
+          {(categories.contact || categories.dependents || categories.sfa) && (
+            <div className="fade-in" style={{ padding: '16px', background: '#f0f9ff', border: '1px solid #bae6fd', borderRadius: '12px', marginBottom: '12px' }}>
+              <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                <span style={{ fontSize: '20px' }}>ℹ️</span>
+                <div style={{ fontSize: '11.5px', color: '#0369a1', fontWeight: '500' }}>
+                   <strong>Note:</strong> Redirection to your Profile will occur upon clicking "Next Step".
+                </div>
+              </div>
+            </div>
+          )}
+
+          {categories.school && (
+            <div className="fade-in" style={{ padding: '16px', background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: '12px', marginBottom: '12px' }}>
+              <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                <span style={{ fontSize: '20px' }}>⚠️</span>
+                <div style={{ fontSize: '11.5px', color: '#9a3412', fontWeight: '500' }}>
+                   <strong>Action Required:</strong> A new application is required for school changes. You will be moved to the Admission Application.
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -244,20 +332,42 @@ const FormD: React.FC<FormDProps> = ({ profile, onBack, onComplete }) => {
                     <div style={{ fontSize: '9px', fontWeight: '600', color: '#888', textTransform: 'uppercase', marginBottom: '4px' }}>New Status</div>
                     <select value={details.status} onChange={e => setDetails({ ...details, status: e.target.value })} style={{ width: '100%', padding: '10px', border: '1px solid #ccc', borderRadius: '4px', fontSize: '12px' }}>
                       <option value="">Select status</option>
-                      <option>Full-Time</option>
-                      <option>Part-Time</option>
-                      <option>Withdrawn (Temporary)</option>
-                      <option>Withdrawn (Permanent)</option>
+                      <option>Full-Time (Enrolled in 3+ courses)</option>
+                      <option>Part-Time (Enrolled in 1-2 courses)</option>
                     </select>
                   </div>
                   <div>
-                    <div style={{ fontSize: '9px', fontWeight: '600', color: '#888', textTransform: 'uppercase', marginBottom: '4px' }}>Effective Date</div>
-                    <input type="date" value={details.effDate} onChange={e => setDetails({ ...details, effDate: e.target.value })} style={{ width: '100%', padding: '9px', border: '1px solid #ccc', borderRadius: '4px', fontSize: '12px' }} />
+                    <div style={{ fontSize: '9px', fontWeight: '600', color: '#888', textTransform: 'uppercase', marginBottom: '4px' }}>Enrollment verification</div>
+                    <input type="file" onChange={e => setSelectedFiles({ ...selectedFiles, enrollmentDoc: e.target.files?.[0] || null })} style={{ fontSize: '11px', color: '#555' }} />
                   </div>
                 </div>
-                <div style={{ marginTop: '12px' }}>
-                  <div style={{ fontSize: '9px', fontWeight: '600', color: '#888', textTransform: 'uppercase', marginBottom: '4px' }}>Supporting Document (Optional)</div>
-                  <input type="file" onChange={e => setSelectedFiles({ ...selectedFiles, enrollmentDoc: e.target.files?.[0] || null })} style={{ fontSize: '11px', color: '#555' }} />
+              </div>
+            </div>
+          )}
+
+          {categories.withdraw && (
+            <div style={{ background: '#fff', border: '1px solid #e0e0e0', borderRadius: '8px', marginBottom: '16px', overflow: 'hidden' }}>
+              <div style={{ background: '#fff1f2', borderBottom: '1px solid #fecaca', padding: '12px 16px', fontSize: '11px', fontWeight: '700', textTransform: 'uppercase', color: '#991b1b', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ fontSize: '14px' }}>🛑</span> Program Withdrawal
+              </div>
+              <div style={{ padding: '16px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '12px' }}>
+                  <div>
+                    <div style={{ fontSize: '9px', fontWeight: '600', color: '#888', textTransform: 'uppercase', marginBottom: '4px' }}>Withdrawal Status <span style={{ color: '#cc0000' }}>*</span></div>
+                    <select value={details.status} onChange={e => setDetails({ ...details, status: e.target.value })} style={{ width: '100%', padding: '10px', border: '1px solid #ccc', borderRadius: '4px', fontSize: '12px' }}>
+                      <option value="">Select status</option>
+                      <option>Withdrawn (Temporary / Medical Leave)</option>
+                      <option>Withdrawn (Permanent / Terminated)</option>
+                    </select>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '9px', fontWeight: '600', color: '#888', textTransform: 'uppercase', marginBottom: '4px' }}>Withdrawal Date <span style={{ color: '#cc0000' }}>*</span></div>
+                    <input type="date" value={details.effDate} onChange={e => setDetails({ ...details, effDate: e.target.value })} style={{ width: '100%', padding: '10px', border: '1px solid #ccc', borderRadius: '4px', fontSize: '12px' }} />
+                  </div>
+                </div>
+                <div>
+                   <div style={{ fontSize: '9px', fontWeight: '600', color: '#888', textTransform: 'uppercase', marginBottom: '4px' }}>Reason for Withdrawal <span style={{ color: '#cc0000' }}>*</span></div>
+                   <textarea rows={2} value={details.reason} onChange={e => setDetails({ ...details, reason: e.target.value })} placeholder="Please explain why you are withdrawing..." style={{ width: '100%', padding: '10px', border: '1px solid #ccc', borderRadius: '4px', fontSize: '12px', fontFamily: 'inherit' }}></textarea>
                 </div>
               </div>
             </div>
@@ -400,24 +510,38 @@ const FormD: React.FC<FormDProps> = ({ profile, onBack, onComplete }) => {
   );
 };
 
-const CategoryLabel: React.FC<{ active: boolean; onClick: () => void; label: string; span2?: boolean }> = ({ active, onClick, label, span2 }) => (
-  <label
+const CategoryCard: React.FC<{ 
+  active: boolean; 
+  onClick: () => void; 
+  label: string; 
+  sub: string; 
+  span2?: boolean 
+}> = ({ active, onClick, label, sub, span2 }) => (
+  <div
     onClick={onClick}
+    className={`selection-card ${active ? 'active' : ''}`}
     style={{
-      border: `1.5px solid ${active ? '#1a4a8a' : '#e0e0e0'}`,
-      borderRadius: '6px',
-      padding: '16px',
+      border: `2px solid ${active ? '#1e40af' : '#e2e8f0'}`,
+      borderRadius: '12px',
+      padding: '20px',
       cursor: 'pointer',
+      background: active ? '#eff6ff' : '#fff',
       display: 'flex',
-      alignItems: 'center',
-      background: active ? '#f0f7ff' : '#fff',
+      gap: '16px',
+      alignItems: 'flex-start',
       gridColumn: span2 ? 'span 2' : 'auto',
-      transition: 'all 0.2s ease'
+      transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+      boxShadow: active ? '0 4px 6px -1px rgba(30, 64, 175, 0.1), 0 2px 4px -1px rgba(30, 64, 175, 0.06)' : 'none',
+      position: 'relative',
+      overflow: 'hidden'
     }}
   >
-    <input type="checkbox" checked={active} onChange={() => { }} style={{ width: '18px', height: '18px', marginRight: '12px' }} />
-    <span style={{ fontSize: '12px', fontWeight: 600, color: '#111' }}>{label}</span>
-  </label>
+    {active && <div style={{ position: 'absolute', top: '0', right: '0', background: '#1e40af', color: '#fff', padding: '4px 12px', fontSize: '10px', fontWeight: '800', borderBottomLeftRadius: '8px' }}>SELECTED</div>}
+    <div style={{ flex: 1 }}>
+      <div style={{ fontSize: '14px', fontWeight: '800', color: active ? '#1e3a8a' : '#1e293b', marginBottom: '4px' }}>{label}</div>
+      <div style={{ fontSize: '11.5px', color: active ? '#3b82f6' : '#64748b', lineHeight: '1.4', fontWeight: '500' }}>{sub}</div>
+    </div>
+  </div>
 );
 
 const Icons = {

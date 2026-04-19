@@ -30,13 +30,15 @@ const AcademicScholarship: React.FC<AcademicScholarshipProps> = ({ profile, onBa
 
   const [selectedTranscript, setSelectedTranscript] = useState<File | null>(null);
 
-  // Fix: Only auto-fill if the fields are currently empty to avoid overwriting user input during polling
+  // Auto-fill sync from profile
   useEffect(() => {
     if (profile) {
       setFormData(prev => ({
         ...prev,
-        studentName: prev.studentName || `${profile.first_name || ''} ${profile.last_name || ''}`.trim(),
-        studentId: prev.studentId || profile.beneficiary_number || ''
+        studentName: prev.studentName || profile.full_name || '',
+        studentId: prev.studentId || profile.beneficiary_number || '',
+        institution: prev.institution || profile.institute || profile.institution_name || '',
+        year: prev.year || String(new Date().getFullYear())
       }));
     }
   }, [profile]);
@@ -52,22 +54,25 @@ const AcademicScholarship: React.FC<AcademicScholarshipProps> = ({ profile, onBa
   ];
 
   // BUG 5: Validation
+  // Validation Logic
   const canGoNext = () => {
     if (currentStep === 1) {
-      return formData.studentName && formData.institution && formData.semester && formData.year;
+      return !!(formData.studentName && formData.institution && formData.semester && formData.year);
     }
     if (currentStep === 2) {
-      return formData.gpaAchieved && (formData.transcriptSubmitted === 'Yes' || selectedTranscript);
+      return !!(formData.gpaAchieved && (formData.transcriptSubmitted === 'Yes' || selectedTranscript));
     }
     return true;
   };
 
   const handleNext = () => {
     if (!canGoNext()) {
-      setError(currentStep === 1 
-        ? 'Please fill in all required program information.' 
-        : 'Please provide your GPA and upload your transcript.'
-      );
+      if (currentStep === 1) {
+        setError('Please fill in all required program information (Institution, Semester, and Year).');
+      } else if (currentStep === 2) {
+        if (!formData.gpaAchieved) setError('Please provide your GPA or Final Grade percentage.');
+        else if (formData.transcriptSubmitted === 'No' && !selectedTranscript) setError('Please upload your official transcript.');
+      }
       return;
     }
     setError(null);
@@ -158,7 +163,7 @@ const AcademicScholarship: React.FC<AcademicScholarshipProps> = ({ profile, onBa
       onBack={handleBack}
       onNext={handleNext}
       isLastStep={currentStep === 3}
-      nextDisabled={isLoading}
+      nextDisabled={!canGoNext() || isLoading}
       onSubmit={handleSubmit}
     >
       {error && (

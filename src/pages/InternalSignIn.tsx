@@ -21,22 +21,34 @@ const InternalSignIn: React.FC = () => {
         setError(null);
 
         try {
-            const response = await API.login({ email, password });
+            const response = await API.login({ email, password }) as any;
             localStorage.setItem('dgg_token', response.access);
             localStorage.setItem('dgg_refresh', response.refresh);
             
-            // Verify role is staff/admin/director
-            const user = await API.getMe();
+            // Fetch profile to verify organizational role
+            const user = await API.getMe() as any;
             localStorage.setItem('dgg_role', user.role);
 
-            if (user.role === 'admin' || user.role === 'director') {
+            // Allowed roles for internal portal
+            const staffRoles = ['admin', 'staff', 'director'];
+            
+            if (staffRoles.includes(user.role)) {
                 navigate('/staff');
             } else {
-                setError('Access denied. This portal is for authorized personnel only.');
+                setError('PERMISSION DENIED: This account is registered as a student. Use the Student Portal login instead.');
                 localStorage.removeItem('dgg_token');
+                localStorage.removeItem('dgg_role');
             }
         } catch (err: any) {
-            setError(err.message || 'Authentication failed. Please check your credentials.');
+            console.error('Login error:', err);
+            const status = err.status || 0;
+            if (status === 401) {
+                setError('INVALID CREDENTIALS: The email or password provided is incorrect.');
+            } else if (status === 403) {
+                setError('ACCOUNT INACTIVE: Your administrative access has been suspended.');
+            } else {
+                setError(err.message || 'SERVER ERROR: Could not connect to authentication services.');
+            }
         } finally {
             setIsLoading(false);
         }

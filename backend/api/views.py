@@ -41,10 +41,18 @@ class RegisterView(viewsets.GenericViewSet):
 class UserDetailView(viewsets.GenericViewSet):
     permission_classes = [permissions.IsAuthenticated]
     
-    @action(detail=False, methods=['get'])
+    @action(detail=False, methods=['get', 'put', 'patch'])
     def me(self, request):
-        serializer = UserSerializer(request.user)
-        return Response(serializer.data)
+        if request.method == 'GET':
+            serializer = UserSerializer(request.user)
+            return Response(serializer.data)
+        
+        # Update logic
+        serializer = UserSerializer(request.user, data=request.data, partial=(request.method == 'PATCH'))
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 class ProfileViewSet(viewsets.ModelViewSet):
     queryset = Profile.objects.all()

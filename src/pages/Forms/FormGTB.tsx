@@ -64,7 +64,7 @@ const FormGTB: React.FC<FormGTBProps> = ({ profile, onBack, onComplete }) => {
   useEffect(() => {
     const airfare = parseFloat(formData.airfareCosts) || 0;
     const hotelPerNight = parseFloat(formData.hotelCostsPerNight) || 0;
-    const nights = Math.min(parseInt(formData.hotelNights) || 1, 3); // Max 3 nights
+    const nights = Math.min(parseInt(formData.hotelNights.toString()) || 1, 3); // Max 3 nights
     const hotelTotal = hotelPerNight * nights;
     
     let total = airfare + hotelTotal;
@@ -447,7 +447,7 @@ const FormGTB: React.FC<FormGTBProps> = ({ profile, onBack, onComplete }) => {
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', fontSize: '13px' }}>
                 <div>Airfare: ${parseFloat(formData.airfareCosts) || 0}.00</div>
-                <div>Hotel: ${((parseFloat(formData.hotelCostsPerNight) || 0) * Math.min(parseInt(formData.hotelNights) || 1, 3)).toFixed(2)}</div>
+                <div>Hotel: ${((parseFloat(formData.hotelCostsPerNight) || 0) * Math.min(parseInt(formData.hotelNights.toString()) || 1, 3)).toFixed(2)}</div>
               </div>
               <div style={{ borderTop: '1px solid #b3d9ff', marginTop: '8px', paddingTop: '8px', fontSize: '14px', fontWeight: '600' }}>
                 Total Claimed: ${formData.totalClaimedAmount} (Max: ${GTB_CAP})

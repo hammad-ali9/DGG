@@ -27,12 +27,13 @@ const FormF: React.FC<FormFProps> = ({ profile, onBack, onComplete }) => {
     signature: ''
   });
 
-  // Fix: Only auto-fill if the fields are currently empty to avoid overwriting user input during polling
+  // Auto-fill sync from profile
   useEffect(() => {
     if (profile) {
       setFormData(prev => ({
         ...prev,
-        studentName: prev.studentName || `${profile.first_name || ''} ${profile.last_name || ''}`.trim()
+        studentName: prev.studentName || profile.full_name || '',
+        orgName: prev.orgName || profile.institute || profile.institution_name || ''
       }));
     }
   }, [profile]);
@@ -48,11 +49,13 @@ const FormF: React.FC<FormFProps> = ({ profile, onBack, onComplete }) => {
   ];
 
   // BUG 5: Validation
+  // Validation Logic
   const canGoNext = () => {
     if (currentStep === 1) {
-      return formData.orgName && formData.supervisorTitle && formData.studentName && formData.placementStart;
+      return !!(formData.orgName && formData.supervisorTitle && formData.studentName && formData.placementStart);
     }
     if (currentStep === 2) {
+      // Must provide sufficient detail
       return formData.responsibilities.length > 10 && formData.performance.length > 10;
     }
     return true;
@@ -60,10 +63,12 @@ const FormF: React.FC<FormFProps> = ({ profile, onBack, onComplete }) => {
 
   const handleNext = () => {
     if (!canGoNext()) {
-      setError(currentStep === 1 
-        ? 'Please fill in all required employer and student information.' 
-        : 'Please provide detailed roles and performance summaries.'
-      );
+      if (currentStep === 1) {
+        setError('Please fill in all required employer and student information.');
+      } else if (currentStep === 2) {
+        if (formData.responsibilities.length <= 10) setError('Please provide a more detailed description of roles/responsibilities.');
+        else if (formData.performance.length <= 10) setError('Please provide a more detailed summary of work performance.');
+      }
       return;
     }
     setError(null);
@@ -124,7 +129,7 @@ const FormF: React.FC<FormFProps> = ({ profile, onBack, onComplete }) => {
           </div>
           <h2 style={{ fontSize: '24px', fontWeight: '700', marginBottom: '12px' }}>Report Received</h2>
           <p style={{ fontSize: '14px', color: '#4a5568', lineHeight: '1.6', maxWidth: '400px', margin: '0 auto 32px' }}>
-            The supervisor's performance report (Form F) has been submitted and linked to the student's file.
+            The supervisor's performance report has been submitted and linked to the student's file.
           </p>
           <button className="wizard-btn-next" style={{ margin: '0 auto' }} onClick={() => onComplete()}>
             Back to Dashboard
@@ -136,7 +141,7 @@ const FormF: React.FC<FormFProps> = ({ profile, onBack, onComplete }) => {
 
   return (
     <FormWizard
-      title="Form F \u2014 Summer Student / Practicum Award"
+      title="Summer Student / Practicum Award"
       subtitle={currentStep === 1 
         ? "This form must be completed by the employer or supervisor to verify your placement." 
         : currentStep === 2
@@ -149,7 +154,7 @@ const FormF: React.FC<FormFProps> = ({ profile, onBack, onComplete }) => {
       onBack={handleBack}
       onNext={handleNext}
       isLastStep={currentStep === 3}
-      nextDisabled={isLoading}
+      nextDisabled={!canGoNext() || isLoading}
       onSubmit={handleSubmit}
     >
       {error && (

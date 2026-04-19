@@ -103,7 +103,8 @@ class FormSubmission(models.Model):
     program_stream = models.CharField(max_length=10, choices=PROGRAM_STREAM_CHOICES, blank=True, null=True, help_text="Funding stream: PSSSP, UCEPP, DGGR, or C-DFN")
 
     def __str__(self):
-        return f"Submission for {self.form.title} by {self.student.email}"
+        student_id = self.student.email if self.student else "Guest"
+        return f"Submission for {self.form.title} by {student_id}"
 
 class SubmissionAnswer(models.Model):
     submission = models.ForeignKey(FormSubmission, on_delete=models.CASCADE, related_name='answers')

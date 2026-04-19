@@ -16,19 +16,25 @@ const SignIn: React.FC = () => {
     setError(null);
     setIsLoading(true);
     try {
-      const response = await API.login({ email, password });
+      const response = await API.login({ email, password }) as any;
       localStorage.setItem('dgg_token', response.access);
       localStorage.setItem('dgg_refresh', response.refresh);
-      
-      // Fetch user role
-      const user = await API.getMe();
-      localStorage.setItem('dgg_role', user.role);
 
-      if (user.role === 'admin' || user.role === 'director') {
-        navigate('/staff');
-      } else {
-        navigate('/dashboard');
+      // Fetch user role
+      const user = await API.getMe() as any;
+
+      if (user.role !== 'student') {
+        // Enforce role separation
+        localStorage.removeItem('dgg_token');
+        localStorage.removeItem('dgg_refresh');
+        localStorage.removeItem('dgg_role');
+        setError('PERMISSION DENIED: This portal is for students only. Please use the Internal Administration Access link below.');
+        setIsLoading(false);
+        return;
       }
+
+      localStorage.setItem('dgg_role', user.role);
+      navigate('/dashboard');
     } catch (err: any) {
       setError(err.message || 'Login failed. Please check your credentials.');
     } finally {
@@ -49,9 +55,9 @@ const SignIn: React.FC = () => {
             <div className="brand-name">Deline Got'ı̨nę Government</div>
             <div className="brand-sub">Student Financial Support Program</div>
             <div className="left-headline">
-              <h1>Empowering your <br/><span style={{ color: 'var(--admin-accent, #e5a662)' }}>Academic Journey</span></h1>
+              <h1>Empowering your <br /><span style={{ color: 'var(--admin-accent, #e5a662)' }}>Academic Journey</span></h1>
               <p>Apply for student funding, track your application status, and manage your education future in one secure place.</p>
-              
+
               <ul className="feature-list" style={{ marginTop: '32px' }}>
                 <li>No software downloads required</li>
                 <li>Real-time eligibility calculation</li>
@@ -121,8 +127,8 @@ const SignIn: React.FC = () => {
             </div>
           </div>
 
-          <button 
-            className="btn-auth-primary" 
+          <button
+            className="btn-auth-primary"
             type="button"
             disabled={isLoading}
             onClick={handleSignIn}
@@ -133,7 +139,7 @@ const SignIn: React.FC = () => {
 
           <div style={{ marginTop: '32px', textAlign: 'center', borderTop: '1px solid #f1f5f9', paddingTop: '24px' }}>
             <div style={{ fontSize: '11px', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '16px' }}>One-Off Applications</div>
-            <button 
+            <button
               type="button"
               onClick={() => setShowGuestModal(true)}
               style={{ background: '#f8fafc', border: '1px solid #e2e8f0', color: '#1a1a1a', fontWeight: 700, cursor: 'pointer', fontSize: '12px', padding: '10px 16px', borderRadius: '8px', width: '100%' }}
@@ -159,18 +165,14 @@ const SignIn: React.FC = () => {
               <h3>One-Off Award Applications</h3>
               <p>Continue without an account for these specific short-term programs.</p>
             </div>
-            
+
             <div className="guest-modal-options">
-              <Link to="/forms/hardship" className="guest-modal-btn">
-                <span className="btn-title">Hardship Award</span>
-                <span className="btn-desc">Emergency support for unexpected financial challenges.</span>
-              </Link>
               <Link to="/forms/practicum" className="guest-modal-btn">
-                <span className="btn-title">Practicum Award</span>
+                <span className="btn-title">Working in Deline this summer?</span>
                 <span className="btn-desc">Support for clinical placements or work experience.</span>
               </Link>
               <Link to="/forms/graduation" className="guest-modal-btn">
-                <span className="btn-title">Graduation Award</span>
+                <span className="btn-title">Completed high school or post-secondary/training program?</span>
                 <span className="btn-desc">One-time recognition for successful program completion.</span>
               </Link>
             </div>

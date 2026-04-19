@@ -23,6 +23,8 @@ class FormViewSet(viewsets.ModelViewSet):
     def get_permissions(self):
         if self.action in ['create', 'update', 'partial_update', 'destroy']:
             return [IsAdminUser()]
+        if self.action == 'submit':
+            return [permissions.AllowAny()]
         return [permissions.IsAuthenticated()]
 
     def perform_create(self, serializer):
@@ -118,7 +120,7 @@ class FormViewSet(viewsets.ModelViewSet):
         form_title = form.title.lower()
         
         # Travel Claim (Form G) - 30-day window (Requirement 2.11)
-        if 'travel' in form_title.lower() or form.id == getattr(form, 'id', None):
+        if 'travel' in form_title.lower() or 'form g' in form_title.lower():
             travel_date_str = answers_dict.get('Travel Date', '')
             if travel_date_str:
                 try:

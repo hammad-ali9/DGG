@@ -29,13 +29,15 @@ const FormH: React.FC<FormHProps> = ({ profile, onBack, onComplete }) => {
 
   const [selectedEvidence, setSelectedEvidence] = useState<File[]>([]);
 
-  // Fix: Only auto-fill if the fields are currently empty to avoid overwriting user input during polling
+  // Auto-fill sync from profile
   useEffect(() => {
     if (profile) {
       setFormData(prev => ({
         ...prev,
-        studentName: prev.studentName || `${profile.first_name || ''} ${profile.last_name || ''}`.trim(),
-        studentId: prev.studentId || profile.beneficiary_number || ''
+        studentName: prev.studentName || profile.full_name || '',
+        studentId: prev.studentId || profile.beneficiary_number || '',
+        institution: prev.institution || profile.institute || profile.institution_name || '',
+        year: prev.year || String(new Date().getFullYear())
       }));
     }
   }, [profile]);
@@ -51,9 +53,10 @@ const FormH: React.FC<FormHProps> = ({ profile, onBack, onComplete }) => {
   ];
 
   // BUG 5: Validation
+  // Validation Logic
   const canGoNext = () => {
     if (currentStep === 1) {
-      return formData.studentName && formData.institution && formData.semester && formData.year;
+      return !!(formData.studentName && formData.institution && formData.semester && formData.year);
     }
     if (currentStep === 2) {
       return formData.appealReason.length > 20;
@@ -63,10 +66,11 @@ const FormH: React.FC<FormHProps> = ({ profile, onBack, onComplete }) => {
 
   const handleNext = () => {
     if (!canGoNext()) {
-      setError(currentStep === 1 
-        ? 'Please fill in all required student and academic information.' 
-        : 'Please provide a detailed explanation for your appeal.'
-      );
+      if (currentStep === 1) {
+        setError('Please fill in all required student and academic information (Institution, Semester, Year).');
+      } else if (currentStep === 2) {
+        setError('Please provide a detailed explanation for your appeal (minimum 20 characters).');
+      }
       return;
     }
     setError(null);
@@ -144,7 +148,7 @@ const FormH: React.FC<FormHProps> = ({ profile, onBack, onComplete }) => {
 
   return (
     <FormWizard
-      title="Form H \u2014 Appeal Request"
+      title="Appeal Request"
       subtitle={currentStep === 1 
         ? "Clearly identify the decision you are appealing and the relevant academic context." 
         : currentStep === 2
@@ -157,7 +161,7 @@ const FormH: React.FC<FormHProps> = ({ profile, onBack, onComplete }) => {
       onBack={handleBack}
       onNext={handleNext}
       isLastStep={currentStep === 3}
-      nextDisabled={isLoading}
+      nextDisabled={!canGoNext() || isLoading}
       onSubmit={handleSubmit}
     >
       {error && (
