@@ -95,8 +95,8 @@ class FormViewSet(viewsets.ModelViewSet):
         # ===== PHASE 2: Validate Timing and Policy =====
         # Check semester deadlines (Requirement 2.7)
         is_late = False
-        deadline_check = ComplianceValidationService.validate_semester_deadline(submission_date.date())
-        if not deadline_check['valid']:
+        is_late, next_deadline, deadline_msg = ComplianceValidationService.validate_semester_deadline(submission_date.date())
+        if is_late:
             is_late = True
             data['is_late'] = True
             # Late submissions require director exception
@@ -134,7 +134,7 @@ class FormViewSet(viewsets.ModelViewSet):
                     return api_response(False, None, "A valid travel date is required for travel claim submissions.", status.HTTP_400_BAD_REQUEST)
         
         # Graduation Award (Form E) and Practicum Award (Form F) - 6-month window (Requirement 2.12)
-        if 'graduation' in form_title.lower() or 'practicum' in form_title.lower():
+        if 'graduation' in form_title or 'forme' in form_title or 'form e' in form_title or 'practicum' in form_title or 'formf' in form_title or 'form f' in form_title:
             completion_date_str = answers_dict.get('Completion Date', '')
             if completion_date_str:
                 try:
@@ -227,13 +227,24 @@ class FormViewSet(viewsets.ModelViewSet):
             except:
                 calculated_amount = Decimal('0.00')
         
-        elif 'practicum' in form_title.lower() or 'form f' in form_title.lower():
+        elif 'practicum' in form_title or 'form f' in form_title:
             # Form F - Practicum Award
             claimed_amount = answers_dict.get('Claimed Amount', '0')
             try:
                 calculated_amount = Decimal(claimed_amount)
             except:
                 calculated_amount = Decimal('0.00')
+        
+        elif 'form d' in form_title or 'change of circumstance' in form_title:
+            # Form D - Overpayment Detection (Requirement 2.15)
+            prev_status = answers_dict.get('Previous Status', '').strip().upper()
+            new_status = answers_dict.get('New Status', '').strip().upper()
+            months_remaining = int(answers_dict.get('months_remaining', 0))
+            
+            overpayment = FundingCalculationService.calculate_overpayment(
+                prev_status, new_status, program_stream.upper(), months_remaining
+            )
+            data['overpayment_amount'] = float(overpayment)
         
         # Set calculated amount if not already provided
         if calculated_amount > 0:
@@ -486,23 +497,25 @@ class FormSubmissionViewSet(viewsets.ModelViewSet):
                 logger = logging.getLogger(__name__)
                 logger.error(f"DGGR budget allocation failed for submission {submission.id}: {str(e)}")
         
-        # ===== PHASE 6: Create Finance notifications (Requirement 2.9) =====
+        # ===== PHASE 6: Create Staff notifications (Requirement 2.9) =====
         if new_status == 'accepted':
             try:
-                finance_users = User.objects.filter(role='finance')
-                for finance_user in finance_users:
-                    student_name = submission.student.full_name if submission.student else 'Unknown'
-                    form_title = submission.form.title if submission.form else 'Unknown Form'
+                # Notify all staff roles: Finance, Admin/SSW, and Director
+                staff_users = User.objects.filter(role__in=['finance', 'admin', 'director'])
+                student_name = submission.student.full_name if submission.student else 'Unknown Guest'
+                form_title = submission.form.title if submission.form else 'Unknown Form'
+                
+                for staff_user in staff_users:
                     Notification.objects.create(
-                        user=finance_user,
-                        title="Payment Scheduled",
-                        message=f"Payment of ${submission.amount} scheduled for {student_name} - {form_title}",
+                        user=staff_user,
+                        title="Payment Approved",
+                        message=f"An award of ${submission.amount} has been approved and scheduled for {student_name} ({form_title}).",
                         link=f"/staff/submissions/{submission.id}"
                     )
             except Exception as e:
                 import logging
                 logger = logging.getLogger(__name__)
-                logger.error(f"Finance notification creation failed for submission {submission.id}: {str(e)}")
+                logger.error(f"Staff notification creation failed for submission {submission.id}: {str(e)}")
         
         # ===== PHASE 7: Add audit logging =====
         try:
@@ -638,7 +651,7 @@ class FormSubmissionViewSet(viewsets.ModelViewSet):
         
         # Verify this is an appeal submission (FormH)
         form_title = submission.form.title.lower() if submission.form else ''
-        if 'formh' not in form_title and 'appeal' not in form_title:
+        if 'formh' not in form_title and 'form h' not in form_title and 'appeal' not in form_title:
             return api_response(
                 False,
                 None,

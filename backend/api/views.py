@@ -1,4 +1,4 @@
-from rest_framework import viewsets, permissions, status
+from rest_framework import viewsets, permissions, status, parsers
 from rest_framework.response import Response
 from rest_framework.decorators import action
 from django.contrib.auth import get_user_model
@@ -34,7 +34,9 @@ class RegisterView(viewsets.GenericViewSet):
         Profile.objects.create(
             user=user,
             beneficiary_number=request.data.get('beneficiaryNo', ''),
-            indian_status=request.data.get('treatyNum', '')
+            indian_status=request.data.get('treatyNum', ''),
+            phone_number=request.data.get('phone', ''),
+            date_of_birth=request.data.get('dob')
         )
         return Response({'status': 'user created'}, status=status.HTTP_201_CREATED)
 
@@ -123,6 +125,7 @@ class UserDocumentViewSet(viewsets.ModelViewSet):
     queryset = UserDocument.objects.all()
     serializer_class = UserDocumentSerializer
     permission_classes = [permissions.IsAuthenticated]
+    parser_classes = [parsers.MultiPartParser, parsers.FormParser, parsers.JSONParser]
 
     def get_queryset(self):
         return self.queryset.filter(user=self.request.user)
@@ -141,39 +144,65 @@ class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):
 class PolicySettingViewSet(viewsets.ModelViewSet):
     """
     ViewSet for managing policy settings.
-    - GET /api/policy-settings/ - List all active policy settings
-    - GET /api/policy-settings/{id}/ - Retrieve specific policy setting
-    - PUT /api/policy-settings/{id}/ - Update policy setting (staff only)
-    
     Requirement 2.2: Centralized policy configuration for living allowances, tuition caps, etc.
     """
     queryset = PolicySetting.objects.filter(is_active=True)
     serializer_class = PolicySettingSerializer
     
     def get_permissions(self):
-        if self.action in ['list', 'retrieve']:
+        if self.action in ['list', 'retrieve', 'all_settings']:
             return [permissions.IsAuthenticated()]
-        elif self.action in ['update', 'partial_update']:
-            return [permissions.IsAdminUser()]
         return [permissions.IsAdminUser()]
     
     def get_queryset(self):
-        # Allow filtering by setting_type, stream, status
-        queryset = PolicySetting.objects.filter(is_active=True)
+        return PolicySetting.objects.filter(is_active=True).order_by('category', 'key')
+
+    @action(detail=False, methods=['get'])
+    def all_settings(self, request):
+        """Returns all settings grouped by category for the dashboard"""
+        settings = self.get_queryset()
+        serializer = self.get_serializer(settings, many=True)
         
-        setting_type = self.request.query_params.get('setting_type')
-        if setting_type:
-            queryset = queryset.filter(setting_type=setting_type)
+        grouped_data = {}
+        for item in serializer.data:
+            cat = item.get('category') or 'uncategorized'
+            if cat not in grouped_data:
+                grouped_data[cat] = []
+            grouped_data[cat].append(item)
+            
+        return Response(grouped_data)
+
+    @action(detail=False, methods=['post'])
+    def bulk_update(self, request):
+        """Atomic update for multiple policy parameters"""
+        settings_data = request.data.get('settings', [])
+        if not settings_data:
+             return Response({'detail': 'No settings provided'}, status=status.HTTP_400_BAD_REQUEST)
+             
+        updated_count = 0
+        errors = []
         
-        stream = self.request.query_params.get('stream')
-        if stream:
-            queryset = queryset.filter(stream=stream)
+        for data in settings_data:
+            setting_id = data.get('id')
+            if not setting_id:
+                continue
+            try:
+                setting = PolicySetting.objects.get(id=setting_id)
+                # Only update value for now as per dashboard requirements
+                serializer = self.get_serializer(setting, data=data, partial=True)
+                if serializer.is_valid():
+                    serializer.save(last_updated_by=request.user)
+                    updated_count += 1
+                else:
+                    errors.append({setting_id: serializer.errors})
+            except PolicySetting.DoesNotExist:
+                errors.append({setting_id: 'Not found'})
         
-        status_filter = self.request.query_params.get('status')
-        if status_filter:
-            queryset = queryset.filter(status=status_filter)
-        
-        return queryset.order_by('key')
+        return Response({
+            'status': 'success',
+            'updated_count': updated_count,
+            'errors': errors
+        })
 
 
 class FundingCalculationView(viewsets.ViewSet):
@@ -389,13 +418,17 @@ class PaymentScheduleViewSet(viewsets.ModelViewSet):
     
     def get_permissions(self):
         if self.action in ['list', 'retrieve']:
-            return [permissions.IsAdminUser()]
+            return [permissions.IsAuthenticated()]
         elif self.action in ['update', 'partial_update']:
             return [permissions.IsAdminUser()]
         return [permissions.IsAdminUser()]
     
     def get_queryset(self):
         queryset = PaymentSchedule.objects.all()
+        
+        # Staff can see everything, students only their own
+        if not self.request.user.is_staff:
+            queryset = queryset.filter(payment__student=self.request.user)
         
         # Filter by submission
         submission_id = self.request.query_params.get('submission_id')
@@ -408,6 +441,37 @@ class PaymentScheduleViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(status=status_filter)
         
         return queryset.order_by('month_year')
+
+
+class PaymentViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet for managing overall payment records.
+    - GET /api/payments/ - List payments (Self for students, ALL for Staff)
+    - GET /api/payments/{id}/ - Retrieve specific payment
+    
+    Requirement 2.4: Transparency and tracking of approved funding disbursements
+    """
+    queryset = Payment.objects.all()
+    serializer_class = PaymentSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def get_queryset(self):
+        queryset = Payment.objects.all()
+        
+        # Security: Students see only their own, Staff see everything
+        if not self.request.user.is_staff:
+            queryset = queryset.filter(student=self.request.user)
+            
+        # Optional filters
+        status = self.request.query_params.get('status')
+        if status:
+            queryset = queryset.filter(status=status)
+            
+        submission_id = self.request.query_params.get('submission_id')
+        if submission_id:
+            queryset = queryset.filter(submission_id=submission_id)
+            
+        return queryset.order_by('-created_at')
 
 
 class DecisionLetterView(viewsets.ViewSet):

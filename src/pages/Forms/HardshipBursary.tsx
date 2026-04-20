@@ -34,7 +34,8 @@ const HardshipBursary: React.FC<HardshipBursaryProps> = ({ profile, onBack, onCo
       setFormData(prev => ({
         ...prev,
         studentName: prev.studentName || profile.full_name || '',
-        studentId: prev.studentId || profile.beneficiary_number || ''
+        studentId: prev.studentId || profile.beneficiary_number || '',
+        institution: prev.institution || profile.institute_name || profile.institute || ''
       }));
     }
   }, [profile]);

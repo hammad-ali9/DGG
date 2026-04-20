@@ -12,6 +12,10 @@ class ProfileSerializer(serializers.ModelSerializer):
         fields = ('beneficiary_number', 'indian_status', 'phone_number', 'mailing_address', 'is_sfa_active', 'profile_completeness', 'preferred_name', 'date_of_birth', 'gender', 'pronouns', 'alt_phone_number')
 
 class UserSerializer(serializers.ModelSerializer):
+    # Core identity fields made optional for partial updates
+    full_name = serializers.CharField(required=False)
+    email = serializers.EmailField(required=False)
+    
     # Flatten profile fields onto the user object for easier frontend consumption
     preferred_name = serializers.CharField(source='profile.preferred_name', required=False, allow_blank=True)
     mailing_address = serializers.CharField(source='profile.mailing_address', required=False, allow_blank=True)
@@ -29,33 +33,75 @@ class UserSerializer(serializers.ModelSerializer):
     institute = serializers.CharField(source='profile.institute_name', required=False, allow_blank=True) # Map institute to profile.institute_name
     institution_name = serializers.CharField(source='profile.institute_name', required=False, allow_blank=True)
     program_credential = serializers.CharField(source='profile.program_credential', required=False, allow_blank=True)
+
+    # Banking Details
+    bank_name = serializers.CharField(source='profile.bank_name', required=False, allow_blank=True)
+    account_holder_name = serializers.CharField(source='profile.account_holder_name', required=False, allow_blank=True)
+    transit_number = serializers.CharField(source='profile.transit_number', required=False, allow_blank=True)
+    inst_number = serializers.CharField(source='profile.inst_number', required=False, allow_blank=True)
+    account_number = serializers.CharField(source='profile.account_number', required=False, allow_blank=True)
+    
+    # Eligibility & Identifiers
+    upi = serializers.CharField(source='profile.upi', required=False, allow_blank=True)
+    financial_assistance_status = serializers.CharField(source='profile.financial_assistance_status', required=False, allow_blank=True)
+    treaty_number = serializers.CharField(source='profile.treaty_number', required=False, allow_blank=True)
+    beneficiary_number = serializers.CharField(source='profile.beneficiary_number', required=False, allow_blank=True)
+    primary_stream = serializers.CharField(source='profile.primary_stream', required=False, allow_blank=True)
+    dob = serializers.DateField(source='profile.date_of_birth', required=False, allow_null=True)
+    phone = serializers.CharField(source='profile.phone_number', required=False, allow_blank=True)
+    
+    # Additional Enrollment info
+    current_semester = serializers.CharField(source='profile.current_semester', required=False, allow_blank=True)
+    course_load = serializers.IntegerField(source='profile.course_load', required=False)
+    expected_graduation_date = serializers.DateField(source='profile.expected_graduation_date', required=False, allow_null=True)
+    program_type = serializers.CharField(source='profile.program_type', required=False, allow_blank=True)
+    years_in_program = serializers.CharField(source='profile.years_in_program', required=False, allow_blank=True)
+    institution_location = serializers.CharField(source='profile.institution_location', required=False, allow_blank=True)
+    
+    # Dependent/Special info
+    dependent_ages = serializers.CharField(source='profile.dependent_ages', required=False, allow_blank=True)
+    disability_accommodation = serializers.CharField(source='profile.disability_accommodation', required=False, allow_blank=True)
     
     class Meta:
         model = User
         fields = (
-            'id', 'username', 'first_name', 'last_name', 'full_name', 'email', 'phone', 'dob', 
+            'id', 'full_name', 'email', 'phone', 'dob', 
             'beneficiary_number', 'preferred_name', 'mailing_address', 'town_city', 
             'postal_code', 'indian_status', 'is_sfa_active', 'gender', 'pronouns', 
             'alternate_phone', 'institute', 'institution_name', 'program_credential',
-            'enrollment_status', 'num_dependents'
+            'enrollment_status', 'num_dependents', 'bank_name', 'account_holder_name',
+            'transit_number', 'inst_number', 'account_number', 'upi', 
+            'financial_assistance_status', 'treaty_number', 'current_semester',
+            'course_load', 'expected_graduation_date', 'program_type',
+            'years_in_program', 'institution_location', 'dependent_ages',
+            'disability_accommodation', 'primary_stream'
         )
+        # id and email must not be writable — email uniqueness check would fail
+        # on PATCH since the same email already exists on this user record
+        read_only_fields = ('id', 'email')
     
     def update(self, instance, validated_data):
+        # DRF automatically nests fields with 'source=profile.attr' into a 'profile' dict
         profile_data = validated_data.pop('profile', {})
-        
-        # Update User fields
+
+        # Update User-level fields (full_name, phone, beneficiary_number, treaty_number, dob)
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
         instance.save()
-        
-        # Update Profile fields
+
+        # Always upsert Profile — even if profile_data is empty, ensure the row exists
+        profile, _ = Profile.objects.get_or_create(user=instance)
         if profile_data:
-            profile, _ = Profile.objects.get_or_create(user=instance)
             for attr, value in profile_data.items():
                 setattr(profile, attr, value)
             profile.save()
-            
+
+        # Re-assign to clear DRF's cached reverse relation so serializer.data
+        # returns the freshly saved values instead of the stale cached object.
+        instance.profile = profile
+
         return instance
+
 
 class DocumentSerializer(serializers.ModelSerializer):
     class Meta:
@@ -87,14 +133,18 @@ class AuditLogSerializer(serializers.ModelSerializer):
 
 class PolicySettingSerializer(serializers.ModelSerializer):
     """Serializer for PolicySetting model"""
+    last_updated_by_name = serializers.CharField(source='last_updated_by.full_name', read_only=True)
+    last_updated_at = serializers.DateTimeField(source='updated_at', read_only=True)
+    
     class Meta:
         model = PolicySetting
         fields = (
-            'id', 'key', 'setting_type', 'value', 'stream', 'status',
+            'id', 'key', 'category', 'field_label', 'field_key', 'unit',
+            'setting_type', 'value', 'stream', 'status',
             'dependent_count', 'credential_type', 'description', 'is_active',
-            'created_at', 'updated_at'
+            'last_updated_by_name', 'last_updated_at'
         )
-        read_only_fields = ('id', 'created_at', 'updated_at')
+        read_only_fields = ('id', 'last_updated_at')
 
 
 class PaymentSerializer(serializers.ModelSerializer):

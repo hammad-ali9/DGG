@@ -3,6 +3,13 @@ import API from '../../api/client';
 import FormWizard from '../../components/Forms/FormWizard';
 import '../../styles/forms.css';
 
+interface ExpenseRow {
+  id: string;
+  description: string;
+  amount: string;
+  receiptAttached: boolean;
+}
+
 interface FormGProps {
   profile?: any;
   onBack: () => void;
@@ -14,77 +21,75 @@ const FormG: React.FC<FormGProps> = ({ profile, onBack, onComplete }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitted, setIsSubmitted] = useState(false);
-
-  // BUG 1: Connectivity & State
+  
   const [formData, setFormData] = useState({
-    fullName: '',
+    firstName: '',
+    lastName: '',
     dob: '',
     treatyNumber: '',
-    sin: '',
-    phone: '',
-    email: '',
-    city: '',
-    province: '',
-    postalCode: '',
-    institution: '',
-    program: '',
-    completionDate: '',
-    credential: 'Degree (Bachelors)',
-    bankInstitution: '',
-    bankTransit: '',
-    bankAccount: '',
-    releaseToOther: false,
-    recipientName: '',
-    recipientRelationship: '',
+    travelFrom: '',
+    travelTo: '',
+    travelDate: '',
+    returnTravelDate: '',
+    modeAir: true,
+    modeLand: false,
+    kmTraveled: '',
+    vehicleDriver: '',
+    declarationConfirmed: false,
     signature: ''
   });
 
-  const [selectedProof, setSelectedProof] = useState<File | null>(null);
+  const [expenses, setExpenses] = useState<ExpenseRow[]>([
+    { id: '1', description: '', amount: '', receiptAttached: false },
+    { id: '2', description: '', amount: '', receiptAttached: false },
+    { id: '3', description: '', amount: '', receiptAttached: false }
+  ]);
+
+  const [totalAmount, setTotalAmount] = useState(0);
+  const [selectedReceipts, setSelectedReceipts] = useState<FileList | null>(null);
 
   // Auto-fill sync from profile
   useEffect(() => {
     if (profile) {
       setFormData(prev => ({
         ...prev,
-        fullName: prev.fullName || profile.full_name || '',
-        email: prev.email || profile.email || '',
-        phone: prev.phone || profile.phone || '',
-        treatyNumber: prev.treatyNumber || profile.treaty_number || '',
+        firstName: prev.firstName || profile.full_name?.split(' ')[0] || '',
+        lastName: prev.lastName || profile.full_name?.split(' ').slice(1).join(' ') || '',
         dob: prev.dob || profile.dob || '',
-        city: prev.city || profile.town_city || '',
-        province: prev.province || 'NT',
-        postalCode: prev.postalCode || profile.postal_code || '',
-        institution: prev.institution || profile.institute || profile.institution_name || '',
-        program: prev.program || profile.program_credential || '',
-        bankInstitution: prev.bankInstitution || profile.bank_name || '',
-        bankTransit: prev.bankTransit || profile.transit_number || '',
-        bankAccount: prev.bankAccount || profile.account_number || ''
+        treatyNumber: prev.treatyNumber || profile.treaty_number || '',
+        travelFrom: prev.travelFrom || profile.town_city || ''
       }));
     }
   }, [profile]);
+
+  useEffect(() => {
+    const total = expenses.reduce((sum, row) => {
+      const val = parseFloat(row.amount) || 0;
+      return sum + val;
+    }, 0);
+    setTotalAmount(total);
+  }, [expenses]);
 
   const handleInputChange = (field: string, value: any) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
+  const handleUpdateRow = (id: string, field: keyof ExpenseRow, value: any) => {
+    setExpenses(expenses.map(e => e.id === id ? { ...e, [field]: value } : e));
+  };
+
   const steps = [
-    { id: 1, label: 'Personal Info' },
-    { id: 2, label: 'Graduation Details' },
-    { id: 3, label: 'Banking & Release' },
-    { id: 4, label: 'Declaration' }
+    { id: 1, label: 'Student & Travel' },
+    { id: 2, label: 'Expenses & Receipts' },
+    { id: 3, label: 'Declaration' }
   ];
 
-  // BUG 5: Validation
-  // Validation Logic
   const canGoNext = () => {
     if (currentStep === 1) {
-      return !!(formData.fullName && formData.dob && formData.treatyNumber && formData.email && formData.city);
+      return !!(formData.firstName && formData.lastName && formData.travelFrom && formData.travelTo && formData.travelDate);
     }
     if (currentStep === 2) {
-      return !!(formData.institution && formData.program && formData.completionDate && selectedProof);
-    }
-    if (currentStep === 3) {
-      return !!(formData.bankInstitution && formData.bankTransit && formData.bankAccount);
+      return totalAmount > 0 && selectedReceipts && selectedReceipts.length > 0;
     }
     return true;
   };
@@ -92,17 +97,15 @@ const FormG: React.FC<FormGProps> = ({ profile, onBack, onComplete }) => {
   const handleNext = () => {
     if (!canGoNext()) {
       if (currentStep === 1) {
-        setError('Please fill in all required personal information (Name, DOB, Treaty #, and Address).');
+        setError('Please fill in all required travel information (Name, Destination, Departure Date).');
       } else if (currentStep === 2) {
-        if (!selectedProof) setError('Please upload your Proof of Completion / Certificate.');
-        else setError('Please provide your Institution, Program name, and Completion Date.');
-      } else if (currentStep === 3) {
-        setError('Banking information (Institution, Transit, and Account #) is strictly required for this award.');
+        if (totalAmount <= 0) setError('Total claim amount must be greater than zero.');
+        else if (!selectedReceipts || selectedReceipts.length === 0) setError('Please upload your boarding passes or travel receipts.');
       }
       return;
     }
     setError(null);
-    if (currentStep < 4) setCurrentStep(currentStep + 1);
+    if (currentStep < 3) setCurrentStep(currentStep + 1);
   };
 
   const handleBack = () => {
@@ -110,10 +113,9 @@ const FormG: React.FC<FormGProps> = ({ profile, onBack, onComplete }) => {
     else onBack();
   };
 
-  // BUG 4: Connected Submission Flow
   const handleSubmit = async () => {
-    if (!formData.signature) {
-      setError('Student signature is required.');
+    if (!formData.declarationConfirmed || !formData.signature) {
+      setError('Please sign and confirm the declaration.');
       return;
     }
 
@@ -123,25 +125,20 @@ const FormG: React.FC<FormGProps> = ({ profile, onBack, onComplete }) => {
       const submissionData = new FormData();
       
       const answers = [
-        { field_label: 'Full Name', answer_text: formData.fullName },
-        { field_label: 'Date of Birth', answer_text: formData.dob },
+        { field_label: 'First Name', answer_text: formData.firstName },
+        { field_label: 'Last Name', answer_text: formData.lastName },
+        { field_label: 'DOB', answer_text: formData.dob },
         { field_label: 'Treaty Number', answer_text: formData.treatyNumber },
-        { field_label: 'SIN', answer_text: formData.sin },
-        { field_label: 'Phone', answer_text: formData.phone },
-        { field_label: 'Email', answer_text: formData.email },
-        { field_label: 'City', answer_text: formData.city },
-        { field_label: 'Province', answer_text: formData.province },
-        { field_label: 'Postal Code', answer_text: formData.postalCode },
-        { field_label: 'Institution', answer_text: formData.institution },
-        { field_label: 'Program', answer_text: formData.program },
-        { field_label: 'Completion Date', answer_text: formData.completionDate },
-        { field_label: 'Credential Type', answer_text: formData.credential },
-        { field_label: 'Bank Institution', answer_text: formData.bankInstitution },
-        { field_label: 'Bank Transit', answer_text: formData.bankTransit },
-        { field_label: 'Bank Account', answer_text: formData.bankAccount },
-        { field_label: 'Recipient Name', answer_text: formData.releaseToOther ? formData.recipientName : 'Self' },
-        { field_label: 'Recipient Relationship', answer_text: formData.releaseToOther ? formData.recipientRelationship : 'N/A' },
-        { field_label: 'Student Signature', answer_text: formData.signature }
+        { field_label: 'Traveling From', answer_text: formData.travelFrom },
+        { field_label: 'Traveling To', answer_text: formData.travelTo },
+        { field_label: 'Travel Date', answer_text: formData.travelDate },
+        { field_label: 'Return Date', answer_text: formData.returnTravelDate },
+        { field_label: 'Mode Air', answer_text: formData.modeAir ? 'Yes' : 'No' },
+        { field_label: 'Mode Land', answer_text: formData.modeLand ? 'Yes' : 'No' },
+        { field_label: 'Total KM', answer_text: formData.kmTraveled },
+        { field_label: 'Vehicle/Driver', answer_text: formData.vehicleDriver },
+        { field_label: 'Claimed Amount', answer_text: totalAmount.toString() },
+        { field_label: 'Signature', answer_text: formData.signature }
       ];
 
       answers.forEach((ans, i) => {
@@ -149,9 +146,16 @@ const FormG: React.FC<FormGProps> = ({ profile, onBack, onComplete }) => {
         submissionData.append(`answers[${i}]answer_text`, ans.answer_text);
       });
 
-      if (selectedProof) {
-        submissionData.append(`answers[${answers.length}]field_label`, 'Proof of Completion');
-        submissionData.append(`answers[${answers.length}]answer_file`, selectedProof);
+      // Add expense list
+      submissionData.append(`answers[${answers.length}]field_label`, 'Expense List');
+      submissionData.append(`answers[${answers.length}]answer_text`, JSON.stringify(expenses.filter(e => e.description && e.amount)));
+
+      // Add receipts
+      if (selectedReceipts) {
+        for (let i = 0; i < selectedReceipts.length; i++) {
+          submissionData.append(`answers[${answers.length + 1 + i}]field_label`, `Receipt ${i + 1}`);
+          submissionData.append(`answers[${answers.length + 1 + i}]answer_file`, selectedReceipts[i]);
+        }
       }
 
       await API.submitApplication({
@@ -160,7 +164,7 @@ const FormG: React.FC<FormGProps> = ({ profile, onBack, onComplete }) => {
       });
       setIsSubmitted(true);
     } catch (err: any) {
-      setError(err.message || 'Failed to submit graduation award application.');
+      setError(err.message || 'Failed to submit travel claim. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -173,9 +177,9 @@ const FormG: React.FC<FormGProps> = ({ profile, onBack, onComplete }) => {
           <div className="success-icon" style={{ margin: '0 auto 24px', width: '64px', height: '64px', border: '2px solid #38a169', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#38a169' }}>
             <Icons.Check />
           </div>
-          <h2 style={{ fontSize: '24px', fontWeight: '700', marginBottom: '12px' }}>Application Received</h2>
+          <h2 style={{ fontSize: '24px', fontWeight: '700', marginBottom: '12px' }}>Travel Claim Submitted</h2>
           <p style={{ fontSize: '14px', color: '#4a5568', lineHeight: '1.6', maxWidth: '400px', margin: '0 auto 32px' }}>
-            Congratulations on your graduation! Your award application is being processed. Payments are typically issued via direct deposit within 15 business days.
+            Your travel reimbursement claim has been received. Please allow 10-15 business days for processing after all receipts are verified.
           </p>
           <button className="wizard-btn-next" style={{ margin: '0 auto' }} onClick={() => onComplete()}>
             Back to Dashboard
@@ -187,21 +191,19 @@ const FormG: React.FC<FormGProps> = ({ profile, onBack, onComplete }) => {
 
   return (
     <FormWizard
-      title="Graduation Award"
+      title="Travel Claim (Form G)"
       subtitle={currentStep === 1 
-        ? "Verify your identity and mailing address for award processing." 
+        ? "Apply for travel reimbursement (must be submitted within 30 days of travel)." 
         : currentStep === 2
-          ? "Tell us about your achievement and upload your proof of completion."
-          : currentStep === 3
-            ? "Provide your banking details for the award payment."
-            : "Review and sign your application."
+          ? "List all individual travel expenses. Receipts must be attached for each."
+          : "Review and sign your claim."
       }
       steps={steps}
       currentStep={currentStep}
       onStepClick={setCurrentStep}
       onBack={handleBack}
       onNext={handleNext}
-      isLastStep={currentStep === 4}
+      isLastStep={currentStep === 3}
       nextDisabled={!canGoNext() || isLoading}
       onSubmit={handleSubmit}
     >
@@ -211,157 +213,118 @@ const FormG: React.FC<FormGProps> = ({ profile, onBack, onComplete }) => {
         </div>
       )}
 
+      <div style={{ background: '#f7f7f7', border: '1px solid #e0e0e0', borderLeft: '3px solid #333', borderRadius: '3px', padding: '10px 12px', fontSize: '10px', color: '#444', lineHeight: '1.6', marginBottom: '12px', marginTop: '20px' }}>
+        Travel claims must be submitted <strong>within 30 days of travel</strong> according to DGG education policy.
+      </div>
+
       {currentStep === 1 && (
         <div className="fade-in">
-          <div style={{ background: '#fff', border: '1px solid #e0e0e0', borderRadius: '4px', padding: '20px', marginBottom: '20px' }}>
-            <div className="section-divider">Student Information</div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px', marginBottom: '12px' }}>
+          <div style={{ background: '#fff', border: '1px solid #e0e0e0', borderRadius: '4px', marginBottom: '14px', padding: '16px' }}>
+             <div style={{ fontSize: '12px', fontWeight: '700', color: '#111', marginBottom: '12px', textTransform: 'uppercase' }}>A. Student Information</div>
+             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '12px' }}>
                 <div>
-                  <label className="field-label">Full Legal Name *</label>
-                  <input className="field-input" value={formData.fullName} onChange={e => handleInputChange('fullName', e.target.value)} />
+                    <label className="field-label">First Name *</label>
+                    <input className="field-input" value={formData.firstName} onChange={e => handleInputChange('firstName', e.target.value)} />
                 </div>
                 <div>
-                  <label className="field-label">Date of Birth *</label>
-                  <input className="field-input" type="date" value={formData.dob} onChange={e => handleInputChange('dob', e.target.value)} />
+                    <label className="field-label">Last Name *</label>
+                    <input className="field-input" value={formData.lastName} onChange={e => handleInputChange('lastName', e.target.value)} />
                 </div>
                 <div>
-                  <label className="field-label">Treaty / SCN # *</label>
-                  <input className="field-input" value={formData.treatyNumber} onChange={e => handleInputChange('treatyNumber', e.target.value)} />
-                </div>
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
-                <div>
-                  <label className="field-label">Social Insurance #</label>
-                  <input className="field-input" type="password" value={formData.sin} onChange={e => handleInputChange('sin', e.target.value)} />
+                    <label className="field-label">DOB *</label>
+                    <input className="field-input" type="date" value={formData.dob} onChange={e => handleInputChange('dob', e.target.value)} />
                 </div>
                 <div>
-                  <label className="field-label">Phone *</label>
-                  <input className="field-input" value={formData.phone} onChange={e => handleInputChange('phone', e.target.value)} />
+                    <label className="field-label">Treaty # *</label>
+                    <input className="field-input" value={formData.treatyNumber} onChange={e => handleInputChange('treatyNumber', e.target.value)} />
+                </div>
+             </div>
+          </div>
+
+          <div style={{ background: '#fff', border: '1px solid #e0e0e0', borderRadius: '4px', marginBottom: '14px', padding: '16px' }}>
+             <div style={{ fontSize: '12px', fontWeight: '700', color: '#111', marginBottom: '12px', textTransform: 'uppercase' }}>B. Travel Information</div>
+             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
+                <div>
+                    <label className="field-label">Traveling From *</label>
+                    <input className="field-input" value={formData.travelFrom} onChange={e => handleInputChange('travelFrom', e.target.value)} placeholder="City, Prov" />
                 </div>
                 <div>
-                  <label className="field-label">Email *</label>
-                  <input className="field-input" type="email" value={formData.email} onChange={e => handleInputChange('email', e.target.value)} />
+                    <label className="field-label">Traveling To *</label>
+                    <input className="field-input" value={formData.travelTo} onChange={e => handleInputChange('travelTo', e.target.value)} placeholder="City, Prov" />
                 </div>
-            </div>
-            
-            <div className="section-divider">Current Mailing Address</div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
+             </div>
+             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '12px' }}>
                 <div>
-                  <label className="field-label">Town / City *</label>
-                  <input className="field-input" value={formData.city} onChange={e => handleInputChange('city', e.target.value)} />
+                    <label className="field-label">Travel Date *</label>
+                    <input className="field-input" type="date" value={formData.travelDate} onChange={e => handleInputChange('travelDate', e.target.value)} />
                 </div>
                 <div>
-                  <label className="field-label">Province *</label>
-                  <input className="field-input" value={formData.province} onChange={e => handleInputChange('province', e.target.value)} />
+                    <label className="field-label">Return Date</label>
+                    <input className="field-input" type="date" value={formData.returnTravelDate} onChange={e => handleInputChange('returnTravelDate', e.target.value)} />
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                    <label style={{ fontSize: '10px', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                        <input type="checkbox" checked={formData.modeAir} onChange={e => handleInputChange('modeAir', e.target.checked)} /> Air
+                    </label>
+                    <label style={{ fontSize: '10px', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                        <input type="checkbox" checked={formData.modeLand} onChange={e => handleInputChange('modeLand', e.target.checked)} /> Land
+                    </label>
                 </div>
                 <div>
-                  <label className="field-label">Postal Code *</label>
-                  <input className="field-input" value={formData.postalCode} onChange={e => handleInputChange('postalCode', e.target.value)} />
+                    <label className="field-label">Total KM (if Land)</label>
+                    <input className="field-input" type="number" value={formData.kmTraveled} onChange={e => handleInputChange('kmTraveled', e.target.value)} />
                 </div>
-            </div>
+             </div>
           </div>
         </div>
       )}
 
       {currentStep === 2 && (
         <div className="fade-in">
-          <div style={{ background: '#fff', border: '1px solid #e0e0e0', borderRadius: '4px', padding: '20px', marginBottom: '20px' }}>
-            <div className="section-divider">Graduation Details</div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
-                <div>
-                  <label className="field-label">Institution *</label>
-                  <input className="field-input" value={formData.institution} onChange={e => handleInputChange('institution', e.target.value)} />
-                </div>
-                <div>
-                  <label className="field-label">Program of Study *</label>
-                  <input className="field-input" value={formData.program} onChange={e => handleInputChange('program', e.target.value)} />
-                </div>
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                <div>
-                  <label className="field-label">Completion Date *</label>
-                  <input className="field-input" type="date" value={formData.completionDate} onChange={e => handleInputChange('completionDate', e.target.value)} />
-                </div>
-                <div>
-                  <label className="field-label">Credential Earned *</label>
-                  <select className="field-input" value={formData.credential} onChange={e => handleInputChange('credential', e.target.value)}>
-                    <option>Certificate</option>
-                    <option>Diploma</option>
-                    <option>Degree (Bachelors)</option>
-                    <option>Masters</option>
-                    <option>Doctorate</option>
-                  </select>
-                </div>
-            </div>
-          </div>
+           <div style={{ background: '#fff', border: '1px solid #e0e0e0', borderRadius: '4px', padding: '16px', marginBottom: '14px' }}>
+               <div style={{ fontSize: '12px', fontWeight: '700', color: '#111', marginBottom: '12px', textTransform: 'uppercase' }}>Expense Breakdown</div>
+               <div style={{ display: 'grid', gridTemplateColumns: '3fr 1fr 1fr', gap: '10px', marginBottom: '10px', fontWeight: '600', fontSize: '10px' }}>
+                   <div>Description</div>
+                   <div>Amount ($)</div>
+                   <div>Receipt?</div>
+               </div>
+               {expenses.map(row => (
+                   <div key={row.id} style={{ display: 'grid', gridTemplateColumns: '3fr 1fr 1fr', gap: '10px', marginBottom: '8px' }}>
+                       <input className="field-input" value={row.description} onChange={e => handleUpdateRow(row.id, 'description', e.target.value)} placeholder="e.g. Boarding Pass" />
+                       <input className="field-input" type="number" value={row.amount} onChange={e => handleUpdateRow(row.id, 'amount', e.target.value)} placeholder="0.00" />
+                       <label style={{ fontSize: '10px', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                           <input type="checkbox" checked={row.receiptAttached} onChange={e => handleUpdateRow(row.id, 'receiptAttached', e.target.checked)} /> Yes
+                       </label>
+                   </div>
+               ))}
+               <div style={{ borderTop: '1px solid #eee', marginTop: '12px', paddingTop: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                   <div style={{ fontWeight: '700', fontSize: '12px' }}>Total Requested:</div>
+                   <div style={{ fontWeight: '700', fontSize: '14px', color: '#1a4aaa' }}>${totalAmount.toFixed(2)}</div>
+               </div>
+           </div>
 
-          <div style={{ background: '#fff', border: '1px solid #e0e0e0', borderRadius: '4px', padding: '20px' }}>
-            <label className="field-label">Proof of Completion / Certificate *</label>
-            <input type="file" onChange={e => setSelectedProof(e.target.files?.[0] || null)} />
-          </div>
+           <div style={{ background: '#fff', border: '1px solid #e0e0e0', borderRadius: '4px', padding: '16px' }}>
+                <div style={{ fontSize: '12px', fontWeight: '700', color: '#111', marginBottom: '4px' }}>Upload Receipts *</div>
+                <input type="file" multiple onChange={e => setSelectedReceipts(e.target.files)} style={{ fontSize: '11px' }} />
+           </div>
         </div>
       )}
 
       {currentStep === 3 && (
         <div className="fade-in">
-          <div style={{ background: '#fff', border: '1px solid #e0e0e0', borderRadius: '4px', padding: '20px', marginBottom: '20px' }}>
-            <div className="section-divider">Banking Information</div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
-                <div>
-                  <label className="field-label">Institution # *</label>
-                  <input className="field-input" value={formData.bankInstitution} onChange={e => handleInputChange('bankInstitution', e.target.value)} maxLength={3} />
+           <div style={{ background: '#fff', border: '1px solid #e0e0e0', borderRadius: '4px', padding: '16px', marginBottom: '14px' }}>
+                <div className="decl-panel" style={{ marginBottom: '16px', fontSize: '11px' }}>
+                    I declare that the expenses incurred have been used for the purpose of traveling to and from my post-secondary institution. Any false information will result in the denial of reimbursement.
                 </div>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '11px', color: '#333', cursor: 'pointer', marginBottom: '16px' }}>
+                   <input type="checkbox" checked={formData.declarationConfirmed} onChange={e => handleInputChange('declarationConfirmed', e.target.checked)} /> 
+                   <span>I confirm the declaration <span style={{ color: '#cc0000' }}>*</span></span>
+                </label>
                 <div>
-                  <label className="field-label">Transit # *</label>
-                  <input className="field-input" value={formData.bankTransit} onChange={e => handleInputChange('bankTransit', e.target.value)} maxLength={5} />
+                   <label className="field-label">Student Signature *</label>
+                   <input className="field-input" value={formData.signature} onChange={e => handleInputChange('signature', e.target.value)} placeholder="Type name to sign" />
                 </div>
-                <div>
-                  <label className="field-label">Account # *</label>
-                  <input className="field-input" value={formData.bankAccount} onChange={e => handleInputChange('bankAccount', e.target.value)} />
-                </div>
-            </div>
-          </div>
-
-          <div style={{ background: '#f8fafc', padding: '20px', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer', marginBottom: formData.releaseToOther ? '16px' : '0' }}>
-              <input type="checkbox" checked={formData.releaseToOther} onChange={e => handleInputChange('releaseToOther', e.target.checked)} />
-              <span style={{ fontSize: '13px', fontWeight: '600' }}>Payment goes to another person (Release of Funds)</span>
-            </label>
-            
-            {formData.releaseToOther && (
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                <div>
-                  <label className="field-label">Recipient Name *</label>
-                  <input className="field-input" value={formData.recipientName} onChange={e => handleInputChange('recipientName', e.target.value)} />
-                </div>
-                <div>
-                  <label className="field-label">Relationship *</label>
-                  <input className="field-input" value={formData.recipientRelationship} onChange={e => handleInputChange('recipientRelationship', e.target.value)} />
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {currentStep === 4 && (
-        <div className="fade-in">
-          <div style={{ background: '#fff', border: '1px solid #e0e0e0', borderRadius: '4px', padding: '20px' }}>
-            <div className="decl-panel" style={{ marginBottom: '20px' }}>
-              I declare that the information provided is true and complete. I understand that any false information will result in the suspension of my graduation award.
-            </div>
-            
-            <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '16px' }}>
-                <div>
-                  <label className="field-label">Student Digital Signature *</label>
-                  <input className="field-input" value={formData.signature} onChange={e => handleInputChange('signature', e.target.value)} placeholder="Type name to sign" />
-                </div>
-                <div>
-                  <label className="field-label">Date</label>
-                  <input className="field-input" disabled value={new Date().toLocaleDateString()} />
-                </div>
-            </div>
-          </div>
+           </div>
         </div>
       )}
     </FormWizard>

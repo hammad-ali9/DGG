@@ -12,11 +12,10 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
             attrs['username'] = attrs['email']
         return super().validate(attrs)
 
-class UserSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = User
-        fields = ('id', 'email', 'full_name', 'phone', 'role', 'profile_picture', 'beneficiary_number', 'treaty_number', 'dob', 'date_joined')
-        read_only_fields = ('id', 'role', 'date_joined')
+# Import the full-featured UserSerializer from api app so /auth/me/ PATCH
+# can read and write all profile fields (banking, enrollment, eligibility, etc.)
+# The api.UserSerializer has the nested Profile update logic already implemented.
+from api.serializers import UserSerializer  # noqa: F401 — re-exported for views
 
 class RegisterSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True)

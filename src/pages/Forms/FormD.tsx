@@ -57,7 +57,7 @@ const FormD: React.FC<FormDProps> = ({ profile, onBack, onComplete, onNavigate }
         address: prev.address || profile.mailing_address || '',
         dependentCount: prev.dependentCount || String(profile.num_dependents || ''),
         dependentAges: prev.dependentAges || profile.dependent_ages || '',
-        institution: prev.institution || profile.institute || profile.institution_name || '',
+        institution: prev.institution || profile.institute_name || profile.institute || '',
         program: prev.program || profile.program_credential || '',
         status: prev.status || profile.enrollment_status || '',
         sfaStatus: prev.sfaStatus || profile.financial_assistance_status || ''

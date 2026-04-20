@@ -93,7 +93,6 @@ const Dashboard: React.FC = () => {
   const [documents, setDocuments] = useState<any[]>([]);
   const [isUploading, setIsUploading] = useState(false);
 
-  const [payments, setPayments] = useState<any[]>([]);
 
   const fetchDashboardData = async () => {
     try {
@@ -103,8 +102,6 @@ const Dashboard: React.FC = () => {
       const userResp = await API.getMe();
       setProfile(userResp);
 
-      const payResp = await API.getPayments() as any;
-      setPayments(Array.isArray(payResp) ? payResp : []);
       
       const notifsResp = await API.getNotifications();
       setNotifications(Array.isArray(notifsResp) ? notifsResp : []);
@@ -207,9 +204,6 @@ const Dashboard: React.FC = () => {
       }, 0);
   };
 
-  const getActiveCount = () => {
-    return applications.filter(app => !['rejected', 'accepted'].includes(app.status)).length;
-  };
 
   const getJourneyStage = () => {
     if (applications.length === 0) {
@@ -297,9 +291,9 @@ const Dashboard: React.FC = () => {
         <div className="sidebar-divider"></div>
 
         <div className="sidebar-section-title">Claims</div>
-        {renderSidebarNav('formE', 'Travel Claim', <Icons.Files />)}
+        {renderSidebarNav('formE', 'Graduation Award', <Icons.Files />)}
         {renderSidebarNav('formF', 'Practicum Report', <Icons.Files />)}
-        {renderSidebarNav('formG', 'Graduation Award', <Icons.Files />)}
+        {renderSidebarNav('formG', 'Travel Claim', <Icons.Files />)}
         {renderSidebarNav('formH', 'Appeal Request', <Icons.Files />)}
 
         <div className="sidebar-divider"></div>
@@ -316,32 +310,9 @@ const Dashboard: React.FC = () => {
         </div>
       </div>
 
-      <div className="dashboard-shell">
-        {/* Status Section */}
-        <section className="dashboard-section">
-          {payments.length > 0 && (
-            <div style={{ marginBottom: '32px', background: '#f0fdf4', border: '1px solid #bbf7d0', padding: '24px', borderRadius: '16px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                <h3 style={{ fontSize: '18px', fontWeight: '800', color: '#166534', margin: 0 }}>Approved Funding</h3>
-                <div style={{ fontSize: '24px', fontWeight: '900', color: '#166534' }}>
-                  ${payments.reduce((sum, p) => sum + parseFloat(p.amount), 0).toLocaleString()}
-                </div>
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '12px' }}>
-                {payments.map((pay, i) => (
-                  <div key={i} style={{ background: 'white', padding: '12px', borderRadius: '10px', border: '1px solid #dcfce7' }}>
-                    <div style={{ fontSize: '10px', fontWeight: '800', color: '#166534', textTransform: 'uppercase' }}>{pay.payment_type}</div>
-                    <div style={{ fontSize: '16px', fontWeight: '800', color: '#111', margin: '4px 0' }}>${parseFloat(pay.amount).toLocaleString()}</div>
-                    <div style={{ fontSize: '11px', color: '#22c55e' }}>Approved · {new Date(pay.date_issued).toLocaleDateString()}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </section>
+        <div className="dashboard-shell">
+          <div className="top-nav">
 
-        {/* Top Nav */}
-        <div className="top-nav">
           <div className="top-nav-left">
             <button className="mobile-menu-btn" onClick={() => setIsMobileMenuOpen(true)}>
               <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
@@ -391,24 +362,6 @@ const Dashboard: React.FC = () => {
                       </div>
                     </div>
 
-                    <div className="kpi-row">
-                      <div className="kpi-card">
-                        <div className="kpi-val">${getApprovedTotal().toLocaleString()}</div>
-                        <div className="kpi-label">Authorized Total</div>
-                      </div>
-                      <div className="kpi-card">
-                        <div className="kpi-val">${getApprovedTotal().toLocaleString()}</div>
-                        <div className="kpi-label">Paid To Date</div>
-                      </div>
-                      <div className="kpi-card">
-                        <div className="kpi-val">$0</div>
-                        <div className="kpi-label">Remaining Balance</div>
-                      </div>
-                      <div className="kpi-card">
-                        <div className="kpi-val">{getActiveCount()}</div>
-                        <div className="kpi-label">Active Applications</div>
-                      </div>
-                    </div>
 
                     <div className="journey-progress-bar fade-in">
                       <div className="phase-info">
@@ -579,7 +532,9 @@ const Dashboard: React.FC = () => {
                   </div>
                   <div className="view-body">
                     <div className="kpi-row">
-                      <div className="kpi-card"><div className="kpi-val">${getApprovedTotal().toLocaleString()}</div><div className="kpi-label">Paid This Year</div></div>
+                      <div className="kpi-card"><div className="kpi-val">${getApprovedTotal().toLocaleString()}</div><div className="kpi-label">Authorized Total</div></div>
+                      <div className="kpi-card"><div className="kpi-val">${getApprovedTotal().toLocaleString()}</div><div className="kpi-label">Paid To Date</div></div>
+                      <div className="kpi-card"><div className="kpi-val">$0</div><div className="kpi-label">Remaining Balance</div></div>
                       <div className="kpi-card"><div className="kpi-val">$0</div><div className="kpi-label">Upcoming Scheduled</div></div>
                     </div>
                     <div className="sec-card">
@@ -640,10 +595,21 @@ const Dashboard: React.FC = () => {
                   <div className="view-header">
                     <div className="view-title">My Documents</div>
                     <div className="view-actions">
-                      <label className={`btn-primary ${isUploading ? 'loading' : ''}`} style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+                      <label 
+                        className={`btn-primary ${isUploading ? 'loading' : ''}`} 
+                        style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '8px' }}
+                        onClick={(e) => {
+                          // Prevent infinite recursion if the browser already bubbles the click to the input
+                          if ((e.target as HTMLElement).tagName !== 'INPUT') {
+                            const input = e.currentTarget.querySelector('input');
+                            if (input) input.click();
+                          }
+                        }}
+                      >
                         {isUploading ? 'Uploading...' : '+ Upload Document'}
                         <input type="file" onChange={handleFileUpload} style={{ display: 'none' }} disabled={isUploading} />
                       </label>
+
                     </div>
                   </div>
                   <div className="view-body">
@@ -782,12 +748,12 @@ const Dashboard: React.FC = () => {
                 />
               )}
 
-              {/* ── TRAVEL CLAIM VIEW ── */}
+              {/* ── GRADUATION AWARD VIEW ── */}
               {currentView === 'formE' && (
                 <FormE 
                   profile={profile}
                   onBack={() => setCurrentView('dashboard')} 
-                  onComplete={() => handleFormComplete('Travel Claim')} 
+                  onComplete={() => handleFormComplete('Graduation Award')} 
                 />
               )}
 
@@ -800,12 +766,12 @@ const Dashboard: React.FC = () => {
                 />
               )}
 
-              {/* ── GRADUATION AWARD VIEW ── */}
+              {/* ── TRAVEL CLAIM VIEW ── */}
               {currentView === 'formG' && (
                 <FormG 
                   profile={profile}
                   onBack={() => setCurrentView('dashboard')} 
-                  onComplete={() => handleFormComplete('Graduation Award')} 
+                  onComplete={() => handleFormComplete('Travel Claim')} 
                 />
               )}
 

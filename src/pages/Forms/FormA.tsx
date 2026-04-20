@@ -70,7 +70,8 @@ const FormA: React.FC<FormAProps> = ({ profile, onBack, onComplete }) => {
     hasDependents: profile?.num_dependents > 0 ? 'yes' : 'no',
     dependentCount: String(profile?.num_dependents || '0'),
     semester: profile?.current_semester || 'Fall 2026',
-    institutionLocation: profile?.institution_location || ''
+    institutionLocation: profile?.institution_location || '',
+    eligibleForSFA: 'yes' // q7
   });
 
   // Auto-fill sync from profile
@@ -168,7 +169,13 @@ const FormA: React.FC<FormAProps> = ({ profile, onBack, onComplete }) => {
   };
 
   const getBursaryStream = () => {
-    return profile?.primary_stream || 'Admission Application Entry';
+    // Requirement 2.4: If q7=no, it's DGG responsibility (PSSSP or UCEPP)
+    // For now, we'll use a simple mapping or allow user to select.
+    // If they say No to SFA, they are definitely in a DGG-funded stream.
+    if (formData.eligibleForSFA === 'no') {
+      return formData.program?.toLowerCase().includes('ucepp') ? 'UCEPP' : 'PSSSP';
+    }
+    return 'PPS'; // Post-Secondary Support (General)
   };
 
   const canGoNext = () => {
@@ -176,10 +183,20 @@ const FormA: React.FC<FormAProps> = ({ profile, onBack, onComplete }) => {
       return !!(formData.firstName && formData.lastName && formData.email && formData.phone && formData.dob && formData.address && formData.city && formData.sin);
     }
     if (currentStep === 2) {
-      return formData.institution && formData.program && formData.semStart && formData.semEnd && formData.registrarEmail;
+      return !!(
+        formData.institution && 
+        formData.program && 
+        formData.semester && 
+        formData.semStart && 
+        formData.semEnd && 
+        formData.programStart && 
+        formData.programEnd && 
+        formData.registrarEmail &&
+        formData.eligibleForSFA
+      );
     }
     if (currentStep === 3) {
-      return formData.accountHolder && formData.transitNumber && formData.instNumber && formData.accountNumber;
+      return !!(formData.accountHolder && formData.transitNumber && formData.instNumber && formData.accountNumber);
     }
     return true;
   };
@@ -342,11 +359,12 @@ const FormA: React.FC<FormAProps> = ({ profile, onBack, onComplete }) => {
                   </select>
                 </td>
                 <td width="50%">
-                  <label className="field-label">Date of Birth *</label>
+                  <label className="field-label">Date of Birth (YYYY-MM-DD) *</label>
                   <input
-                    className="field-input" type="text" placeholder="YYYY/MM/DD"
+                    className="field-input" type="text" placeholder="2000-01-01"
                     value={formData.dob} onChange={e => setFormData({ ...formData, dob: e.target.value })}
                   />
+
                 </td>
               </tr>
               <tr>
@@ -472,6 +490,36 @@ const FormA: React.FC<FormAProps> = ({ profile, onBack, onComplete }) => {
                   </div>
                 </td>
               </tr>
+              <tr>
+                <td colSpan={2}>
+                  <div style={{ background: '#fffbeb', border: '1px solid #fef3c7', padding: '16px', borderRadius: '8px', marginTop: '16px' }}>
+                    <label className="field-label" style={{ color: '#92400e', marginBottom: '8px', display: 'block' }}>
+                      q7. Are you eligible for Student Financial Assistance (SFA) through GNWT? *
+                    </label>
+                    <div style={{ display: 'flex', gap: '24px' }}>
+                      <label className="radio-label" style={{ color: '#92400e', fontWeight: '600' }}>
+                        <input
+                          type="radio" name="q7"
+                          checked={formData.eligibleForSFA === 'yes'}
+                          onChange={() => setFormData({ ...formData, eligibleForSFA: 'yes' })}
+                        /> Yes, I am eligible
+                      </label>
+                      <label className="radio-label" style={{ color: '#92400e', fontWeight: '600' }}>
+                        <input
+                          type="radio" name="q7"
+                          checked={formData.eligibleForSFA === 'no'}
+                          onChange={() => setFormData({ ...formData, eligibleForSFA: 'no' })}
+                        /> No, I have been denied / ineligible
+                      </label>
+                    </div>
+                    {formData.eligibleForSFA === 'no' && (
+                      <div style={{ fontSize: '10px', color: '#b45309', marginTop: '8px' }}>
+                        Notice: You will be required to upload your <strong>SFA Denial Letter</strong> in the final step.
+                      </div>
+                    )}
+                  </div>
+                </td>
+              </tr>
             </tbody>
           </table>
 
@@ -487,32 +535,32 @@ const FormA: React.FC<FormAProps> = ({ profile, onBack, onComplete }) => {
                   />
                 </td>
                 <td width="33%">
-                  <label className="field-label">Semester Start (YY/MM/DD) *</label>
+                  <label className="field-label">Semester Start (YYYY-MM-DD) *</label>
                   <input
-                    className="field-input" type="text" placeholder="26/09/01"
+                    className="field-input" type="text" placeholder="2026-09-01"
                     value={formData.semStart} onChange={e => setFormData({ ...formData, semStart: e.target.value })}
                   />
                 </td>
                 <td width="33%">
-                  <label className="field-label">Semester End (YY/MM/DD) *</label>
+                  <label className="field-label">Semester End (YYYY-MM-DD) *</label>
                   <input
-                    className="field-input" type="text" placeholder="26/12/15"
+                    className="field-input" type="text" placeholder="2026-12-15"
                     value={formData.semEnd} onChange={e => setFormData({ ...formData, semEnd: e.target.value })}
                   />
                 </td>
               </tr>
               <tr>
                 <td width="50%">
-                  <label className="field-label">Total Program Start *</label>
+                  <label className="field-label">Total Program Start (YYYY-MM-DD) *</label>
                   <input
-                    className="field-input" type="text" placeholder="26/09/01"
+                    className="field-input" type="text" placeholder="2026-09-01"
                     value={formData.programStart} onChange={e => setFormData({ ...formData, programStart: e.target.value })}
                   />
                 </td>
                 <td width="50%">
-                  <label className="field-label">Total Program End (Expected) *</label>
+                  <label className="field-label">Total Program End (YYYY-MM-DD) *</label>
                   <input
-                    className="field-input" type="text" placeholder="28/05/15"
+                    className="field-input" type="text" placeholder="2028-05-15"
                     value={formData.programEnd} onChange={e => setFormData({ ...formData, programEnd: e.target.value })}
                   />
                 </td>
@@ -610,6 +658,8 @@ const FormA: React.FC<FormAProps> = ({ profile, onBack, onComplete }) => {
               { label: 'Reference Letter', desc: 'Non-family reference' },
               { label: 'Status Card *', desc: 'Deline Beneficiary / First Nation ID' },
               { label: 'Void Cheque *', desc: 'For banking verification' },
+              // Requirement 2.5: Conditional SFA Denial Letter
+              ...(formData.eligibleForSFA === 'no' ? [{ label: 'SFA Denial Letter *', desc: 'Mandatory if SFA ineligible' }] : []),
               { label: 'Extra Docs', desc: 'Acceptance, etc.' }
             ].map((doc, idx) => (
               <div key={idx} className="doc-item" style={{ background: '#fff', border: '1px solid #e2e8f0', padding: '12px 16px', borderRadius: '8px' }}>

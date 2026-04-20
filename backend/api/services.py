@@ -5,7 +5,7 @@ This module provides centralized business logic for funding calculations,
 compliance validation, and policy enforcement across the portal.
 """
 
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from django.utils import timezone
 from datetime import datetime, timedelta, date
 from django.db.models import Q
@@ -20,6 +20,19 @@ class FundingCalculationService:
     Provides methods for calculating living allowances, tuition caps, graduation awards,
     overpayments, and DGGR budget management with fallback defaults for robustness.
     """
+
+    @staticmethod
+    def _get_decimal_value(policy_setting, default_val=Decimal('0.00')):
+        """Helper to safely cast CharField value to Decimal."""
+        if not policy_setting or not policy_setting.value:
+            return default_val
+        try:
+            # Handle cases where value might have units or symbols if they were saved that way
+            clean_val = str(policy_setting.value).replace('$', '').replace(',', '').strip()
+            # If it's a range or date, this will fail, which is handled by the except block
+            return Decimal(clean_val)
+        except (ValueError, TypeError, InvalidOperation):
+            return default_val
 
     @staticmethod
     def calculate_living_allowance(stream, enrollment_status, dependent_count=0):
@@ -45,7 +58,7 @@ class FundingCalculationService:
                 dependent_count=dependent_count if dependent_count > 0 else 0,
                 is_active=True
             )
-            return policy_setting.value
+            return FundingCalculationService._get_decimal_value(policy_setting)
         except PolicySetting.DoesNotExist:
             pass
         
@@ -61,7 +74,7 @@ class FundingCalculationService:
                 key=base_key,
                 is_active=True
             )
-            return base_setting.value
+            return FundingCalculationService._get_decimal_value(base_setting)
         except PolicySetting.DoesNotExist:
             pass
         
@@ -113,7 +126,7 @@ class FundingCalculationService:
                 stream=stream,
                 is_active=True
             )
-            return policy_setting.value
+            return FundingCalculationService._get_decimal_value(policy_setting)
         except PolicySetting.DoesNotExist:
             pass
         
@@ -145,7 +158,7 @@ class FundingCalculationService:
                 credential_type=credential_type,
                 is_active=True
             )
-            return policy_setting.value
+            return FundingCalculationService._get_decimal_value(policy_setting)
         except PolicySetting.DoesNotExist:
             pass
         
@@ -339,7 +352,7 @@ class ComplianceValidationService:
             tuple: (is_valid: bool, message: str)
         """
         # Check suspension status
-        if student.is_suspended:
+        if student and student.is_suspended:
             # Check if suspension has expired
             if student.suspended_until and student.suspended_until > timezone.now().date():
                 return False, "Your account is currently suspended. Please contact the DGG Education Department."

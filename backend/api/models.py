@@ -28,8 +28,12 @@ class PolicySetting(models.Model):
     ]
     
     key = models.CharField(max_length=100, unique=True, help_text="Unique identifier for this policy setting")
+    category = models.CharField(max_length=100, blank=True, null=True, help_text="Grouping category for the dashboard (e.g., psssp_tuition)")
+    field_label = models.CharField(max_length=200, blank=True, null=True, help_text="Human-readable label for the setting")
+    field_key = models.CharField(max_length=100, blank=True, null=True, help_text="Technical key within the category (e.g., max_per_semester)")
+    unit = models.CharField(max_length=20, blank=True, null=True, help_text="Unit of measurement (e.g., $, days, months)")
     setting_type = models.CharField(max_length=20, choices=SETTING_TYPES, help_text="Type of policy setting")
-    value = models.DecimalField(max_digits=12, decimal_places=2, help_text="Numeric value for this setting")
+    value = models.CharField(max_length=255, help_text="Value for this setting (stored as string for flexibility)")
     stream = models.CharField(max_length=10, choices=STREAM_CHOICES, blank=True, null=True, help_text="Funding stream (if applicable)")
     status = models.CharField(max_length=2, choices=STATUS_CHOICES, blank=True, null=True, help_text="Enrollment status (FT/PT, if applicable)")
     dependent_count = models.IntegerField(blank=True, null=True, help_text="Number of dependents (if applicable)")
@@ -38,6 +42,7 @@ class PolicySetting(models.Model):
     is_active = models.BooleanField(default=True, help_text="Whether this setting is currently active")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    last_updated_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='policy_updates')
     
     class Meta:
         db_table = 'api_policysetting'
@@ -226,6 +231,32 @@ class Profile(models.Model):
     program_credential = models.CharField(max_length=255, blank=True, null=True)
     enrollment_status = models.CharField(max_length=50, blank=True, null=True)
     num_dependents = models.IntegerField(default=0)
+    # Banking Details
+    bank_name = models.CharField(max_length=100, blank=True, null=True)
+    account_holder_name = models.CharField(max_length=255, blank=True, null=True)
+    transit_number = models.CharField(max_length=10, blank=True, null=True)
+    inst_number = models.CharField(max_length=10, blank=True, null=True)
+    account_number = models.CharField(max_length=50, blank=True, null=True)
+    account_type = models.CharField(max_length=50, blank=True, null=True)
+    
+    # Eligibility & Identifiers
+    primary_stream = models.CharField(max_length=100, blank=True, null=True)
+    treaty_number = models.CharField(max_length=50, blank=True, null=True)
+    upi = models.CharField(max_length=50, blank=True, null=True)
+    financial_assistance_status = models.CharField(max_length=100, blank=True, null=True)
+    
+    # Enrollment Information
+    current_semester = models.CharField(max_length=50, blank=True, null=True)
+    course_load = models.IntegerField(blank=True, null=True)
+    expected_graduation_date = models.DateField(blank=True, null=True)
+    program_type = models.CharField(max_length=100, blank=True, null=True)
+    years_in_program = models.CharField(max_length=50, blank=True, null=True)
+    institution_location = models.CharField(max_length=255, blank=True, null=True)
+    
+    # Personal info extras
+    dependent_ages = models.TextField(blank=True, null=True)
+    disability_accommodation = models.TextField(blank=True, null=True)
+    
     profile_completeness = models.IntegerField(default=0)
     
     def __str__(self):

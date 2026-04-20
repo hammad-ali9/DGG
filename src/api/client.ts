@@ -68,10 +68,30 @@ apiClient.interceptors.response.use(
             }
         }
         
+        // Robustly parse field-level errors (e.g., { "email": ["Invalid"] } -> "email: Invalid")
+        let errorMessage = 'An error occurred';
+        const responseData = error.response?.data;
+        
+        if (responseData) {
+            if (typeof responseData === 'object' && !Array.isArray(responseData)) {
+                const firstKey = Object.keys(responseData)[0];
+                const firstVal = responseData[firstKey];
+                if (Array.isArray(firstVal)) {
+                    errorMessage = `${firstKey}: ${firstVal[0]}`;
+                } else if (typeof firstVal === 'string') {
+                    errorMessage = `${firstKey}: ${firstVal}`;
+                } else if (responseData.message || responseData.detail) {
+                    errorMessage = responseData.message || responseData.detail;
+                }
+            } else if (typeof responseData === 'string') {
+                errorMessage = responseData;
+            }
+        }
+        
         return Promise.reject({
             status: error.response?.status,
-            message: error.response?.data?.message || error.response?.data?.detail || 'An error occurred',
-            data: error.response?.data?.data || error.response?.data
+            message: errorMessage,
+            data: responseData
         });
     }
 );
@@ -104,7 +124,7 @@ class API {
     }
 
     static updateMe(data: any) {
-        return apiClient.put('/auth/me/', data);
+        return apiClient.patch('/auth/me/', data);
     }
 
     // Programs

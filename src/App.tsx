@@ -5,9 +5,11 @@ import ForgotPassword from './pages/ForgotPassword';
 import Dashboard from './pages/Dashboard';
 import StaffDashboard from './pages/StaffDashboard';
 import InternalSignIn from './pages/InternalSignIn';
-import HardshipBursary from './pages/Forms/HardshipBursary';
+import FormE from './pages/Forms/FormE';
 import FormF from './pages/Forms/FormF';
 import FormG from './pages/Forms/FormG';
+import FormGTB from './pages/Forms/FormGTB';
+import HardshipBursary from './pages/Forms/HardshipBursary';
 import StandaloneFormWrapper from './components/Forms/StandaloneFormWrapper';
 import ProtectedRoute from './components/Auth/ProtectedRoute';
 
@@ -56,7 +58,17 @@ function App() {
         } />
         <Route path="/forms/graduation" element={
           <StandaloneFormWrapper>
+            {(props) => <FormE {...props} />}
+          </StandaloneFormWrapper>
+        } />
+        <Route path="/forms/travel" element={
+          <StandaloneFormWrapper>
             {(props) => <FormG {...props} />}
+          </StandaloneFormWrapper>
+        } />
+        <Route path="/forms/gtb" element={
+          <StandaloneFormWrapper>
+            {(props) => <FormGTB {...props} />}
           </StandaloneFormWrapper>
         } />
 

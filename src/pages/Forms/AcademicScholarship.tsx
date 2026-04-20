@@ -37,7 +37,7 @@ const AcademicScholarship: React.FC<AcademicScholarshipProps> = ({ profile, onBa
         ...prev,
         studentName: prev.studentName || profile.full_name || '',
         studentId: prev.studentId || profile.beneficiary_number || '',
-        institution: prev.institution || profile.institute || profile.institution_name || '',
+        institution: prev.institution || profile.institute_name || profile.institute || '',
         year: prev.year || String(new Date().getFullYear())
       }));
     }

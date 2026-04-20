@@ -554,7 +554,7 @@ const StaffDashboard: React.FC = () => {
                 <div className="staff-nav-title">Governance</div>
                 {renderNavItem('reports', 'Reports', <AdminIcons.Reports />)}
                 {renderNavItem('policy', 'Policy Settings', <AdminIcons.Policy />)}
-                {renderNavItem('appeals', 'Appeals', <AdminIcons.Apps />, 1)}
+                {renderNavItem('appeals', 'Appeals', <AdminIcons.Apps />, appeals.filter(a => a.status === 'pending').length)}
               </div>
             </>
           ) : (

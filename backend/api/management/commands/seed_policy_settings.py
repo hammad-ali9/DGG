@@ -1,5 +1,4 @@
 """Django management command to seed PolicySetting records"""
-from decimal import Decimal
 from django.core.management.base import BaseCommand
 from api.models import PolicySetting
 
@@ -9,199 +8,86 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         settings_data = [
-            # Living Allowance Rates - PSSSP
+            # Application Deadlines
             {
-                'key': 'living_allowance_psssp_ft_single',
-                'setting_type': 'living_allowance',
-                'value': Decimal('1200.00'),
-                'stream': 'PSSSP',
-                'status': 'FT',
-                'dependent_count': 0,
-                'description': 'PSSSP Full-Time Single Student Living Allowance'
+                'key': 'deadline_fall', 'category': 'application_deadlines', 'field_label': 'Fall Semester Deadline',
+                'field_key': 'fall_deadline', 'value': 'May 1', 'unit': 'date', 'setting_type': 'deadline'
             },
             {
-                'key': 'living_allowance_psssp_ft_dependents',
-                'setting_type': 'living_allowance',
-                'value': Decimal('1800.00'),
-                'stream': 'PSSSP',
-                'status': 'FT',
-                'dependent_count': 1,
-                'description': 'PSSSP Full-Time Student with Dependents Living Allowance'
+                'key': 'deadline_winter', 'category': 'application_deadlines', 'field_label': 'Winter Semester Deadline',
+                'field_key': 'winter_deadline', 'value': 'July 15', 'unit': 'date', 'setting_type': 'deadline'
+            },
+            
+            # PSSSP - Tuition
+            {
+                'key': 'psssp_tuition_max', 'category': 'psssp_tuition', 'field_label': 'Maximum Tuition Per Semester',
+                'field_key': 'max_per_semester', 'value': '5000', 'unit': '$', 'setting_type': 'tuition_cap', 'stream': 'PSSSP'
+            },
+            
+            # PSSSP - Living Allowance
+            {
+                'key': 'psssp_living_ft_nodep', 'category': 'psssp_living', 'field_label': 'Full-Time (No Dependents)',
+                'field_key': 'fulltime_no_dependents', 'value': '1200', 'unit': '$/mo', 'setting_type': 'living_allowance', 'stream': 'PSSSP'
             },
             {
-                'key': 'living_allowance_psssp_pt_single',
-                'setting_type': 'living_allowance',
-                'value': Decimal('800.00'),
-                'stream': 'PSSSP',
-                'status': 'PT',
-                'dependent_count': 0,
-                'description': 'PSSSP Part-Time Single Student Living Allowance'
+                'key': 'psssp_living_ft_dep', 'category': 'psssp_living', 'field_label': 'Full-Time (With Dependents)',
+                'field_key': 'fulltime_with_dependents', 'value': '1800', 'unit': '$/mo', 'setting_type': 'living_allowance', 'stream': 'PSSSP'
+            },
+            
+            # DGGR - Living Allowance
+            {
+                'key': 'dggr_living_ft_nodep', 'category': 'dggr_living', 'field_label': 'Full-Time (No Dependents)',
+                'field_key': 'fulltime_no_dependents', 'value': '1000', 'unit': '$/mo', 'setting_type': 'living_allowance', 'stream': 'DGGR'
+            },
+            
+            # DGGR - Graduation Bursary
+            {
+                'key': 'dggr_grad_bachelor', 'category': 'dggr_grad_bursary', 'field_label': "Bachelor's Degree Award",
+                'field_key': 'bachelor_degree', 'value': '3000', 'unit': '$', 'setting_type': 'credential_amount', 'stream': 'DGGR'
             },
             {
-                'key': 'living_allowance_psssp_pt_dependents',
-                'setting_type': 'living_allowance',
-                'value': Decimal('1200.00'),
-                'stream': 'PSSSP',
-                'status': 'PT',
-                'dependent_count': 1,
-                'description': 'PSSSP Part-Time Student with Dependents Living Allowance'
+                'key': 'dggr_grad_masters', 'category': 'dggr_grad_bursary', 'field_label': "Master's Degree Award",
+                'field_key': 'masters_degree', 'value': '5000', 'unit': '$', 'setting_type': 'credential_amount', 'stream': 'DGGR'
             },
-            # Living Allowance Rates - UCEPP
+
+            # DGGR - Extra Tuition
             {
-                'key': 'living_allowance_ucepp_ft',
-                'setting_type': 'living_allowance',
-                'value': Decimal('1000.00'),
-                'stream': 'UCEPP',
-                'status': 'FT',
-                'description': 'UCEPP Full-Time Living Allowance'
+                'key': 'dggr_extra_tuition_max', 'category': 'dggr_extra_tuition', 'field_label': 'Maximum Extra Tuition Coverage',
+                'field_key': 'max_per_semester', 'value': '5000', 'unit': '$', 'setting_type': 'tuition_cap', 'stream': 'DGGR'
             },
             {
-                'key': 'living_allowance_ucepp_pt',
-                'setting_type': 'living_allowance',
-                'value': Decimal('600.00'),
-                'stream': 'UCEPP',
-                'status': 'PT',
-                'description': 'UCEPP Part-Time Living Allowance'
+                'key': 'dggr_extra_tuition_threshold', 'category': 'dggr_extra_tuition', 'field_label': 'Threshold for Extra Coverage',
+                'field_key': 'threshold_per_semester', 'value': '3000', 'unit': '$', 'setting_type': 'tuition_cap', 'stream': 'DGGR'
             },
-            # Tuition Caps
+            
+            # System Config
             {
-                'key': 'tuition_cap_psssp',
-                'setting_type': 'tuition_cap',
-                'value': Decimal('5000.00'),
-                'stream': 'PSSSP',
-                'description': 'PSSSP Tuition Cap'
-            },
-            {
-                'key': 'tuition_cap_ucepp',
-                'setting_type': 'tuition_cap',
-                'value': Decimal('2000.00'),
-                'stream': 'UCEPP',
-                'description': 'UCEPP Tuition Cap (Upgrading Programs)'
-            },
-            # Credential Award Amounts (Form E - Graduation Awards)
-            {
-                'key': 'credential_high_school_diploma',
-                'setting_type': 'credential_amount',
-                'value': Decimal('500.00'),
-                'credential_type': 'High School Diploma',
-                'description': 'Graduation Award for High School Diploma'
-            },
-            {
-                'key': 'credential_certificate',
-                'setting_type': 'credential_amount',
-                'value': Decimal('1000.00'),
-                'credential_type': 'Certificate',
-                'description': 'Graduation Award for Certificate'
-            },
-            {
-                'key': 'credential_trades_certificate',
-                'setting_type': 'credential_amount',
-                'value': Decimal('2000.00'),
-                'credential_type': 'Trades Certificate of Qualification',
-                'description': 'Graduation Award for Trades Certificate of Qualification'
-            },
-            {
-                'key': 'credential_trades_journeyperson',
-                'setting_type': 'credential_amount',
-                'value': Decimal('3000.00'),
-                'credential_type': 'Trades Journeyperson Licence',
-                'description': 'Graduation Award for Trades Journeyperson Licence'
-            },
-            {
-                'key': 'credential_diploma',
-                'setting_type': 'credential_amount',
-                'value': Decimal('2000.00'),
-                'credential_type': 'Diploma',
-                'description': 'Graduation Award for Diploma'
-            },
-            {
-                'key': 'credential_pilot_licence',
-                'setting_type': 'credential_amount',
-                'value': Decimal('3000.00'),
-                'credential_type': 'Professional Pilot Licence',
-                'description': 'Graduation Award for Professional Pilot Licence'
-            },
-            {
-                'key': 'credential_red_seal',
-                'setting_type': 'credential_amount',
-                'value': Decimal('3000.00'),
-                'credential_type': 'Red Seal',
-                'description': 'Graduation Award for Red Seal'
-            },
-            {
-                'key': 'credential_bachelor',
-                'setting_type': 'credential_amount',
-                'value': Decimal('3000.00'),
-                'credential_type': "Bachelor's Degree",
-                'description': "Graduation Award for Bachelor's Degree"
-            },
-            {
-                'key': 'credential_master',
-                'setting_type': 'credential_amount',
-                'value': Decimal('5000.00'),
-                'credential_type': "Master's Degree",
-                'description': "Graduation Award for Master's Degree"
-            },
-            {
-                'key': 'credential_doctorate',
-                'setting_type': 'credential_amount',
-                'value': Decimal('5000.00'),
-                'credential_type': 'Doctorate (PhD)',
-                'description': 'Graduation Award for Doctorate (PhD)'
-            },
-            {
-                'key': 'credential_juris_doctor',
-                'setting_type': 'credential_amount',
-                'value': Decimal('5000.00'),
-                'credential_type': 'Juris Doctor / Bachelor of Laws',
-                'description': 'Graduation Award for Juris Doctor / Bachelor of Laws'
-            },
-            {
-                'key': 'credential_medical',
-                'setting_type': 'credential_amount',
-                'value': Decimal('5000.00'),
-                'credential_type': 'MD or DDS',
-                'description': 'Graduation Award for MD or DDS'
-            },
-            # Budget Caps
-            {
-                'key': 'dggr_extra_tuition_annual_cap',
-                'setting_type': 'budget_cap',
-                'value': Decimal('36000.00'),
-                'stream': 'DGGR',
-                'description': 'DGGR Extra Tuition Annual Cap (Fiscal Year: April 1 - March 31)'
-            },
-            {
-                'key': 'graduation_travel_bursary_cap',
-                'setting_type': 'budget_cap',
-                'value': Decimal('5000.00'),
-                'description': 'Graduation Travel Bursary Cap'
-            },
+                'key': 'system_finance_email', 'category': 'system_config', 'field_label': 'Finance Dept Email',
+                'field_key': 'finance_email', 'value': 'finance@deline.ca', 'unit': 'email', 'setting_type': 'budget_cap'
+            }
         ]
         
         created_count = 0
         updated_count = 0
         
-        for setting_data in settings_data:
+        for data in settings_data:
             setting, created = PolicySetting.objects.update_or_create(
-                key=setting_data['key'],
+                key=data['key'],
                 defaults={
-                    'setting_type': setting_data['setting_type'],
-                    'value': setting_data['value'],
-                    'stream': setting_data.get('stream'),
-                    'status': setting_data.get('status'),
-                    'dependent_count': setting_data.get('dependent_count'),
-                    'credential_type': setting_data.get('credential_type'),
-                    'description': setting_data.get('description', ''),
+                    'category': data.get('category'),
+                    'field_label': data.get('field_label'),
+                    'field_key': data.get('field_key'),
+                    'value': data['value'],
+                    'unit': data.get('unit', ''),
+                    'setting_type': data['setting_type'],
+                    'stream': data.get('stream'),
                     'is_active': True,
                 }
             )
             
             if created:
                 created_count += 1
-                self.stdout.write(self.style.SUCCESS(f'✓ Created: {setting_data["key"]} = ${setting_data["value"]}'))
             else:
                 updated_count += 1
-                self.stdout.write(self.style.WARNING(f'✓ Updated: {setting_data["key"]} = ${setting_data["value"]}'))
         
-        self.stdout.write(self.style.SUCCESS(f'\n✓ Seed complete: {created_count} created, {updated_count} updated'))
+        self.stdout.write(self.style.SUCCESS(f'Seed complete: {created_count} created, {updated_count} updated'))

@@ -33,7 +33,7 @@ const FormF: React.FC<FormFProps> = ({ profile, onBack, onComplete }) => {
       setFormData(prev => ({
         ...prev,
         studentName: prev.studentName || profile.full_name || '',
-        orgName: prev.orgName || profile.institute || profile.institution_name || ''
+        orgName: prev.orgName || profile.institute_name || profile.institute || ''
       }));
     }
   }, [profile]);

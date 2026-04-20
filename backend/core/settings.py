@@ -151,8 +151,19 @@ SPECTACULAR_SETTINGS = {
 
 # CORS configuration
 # In production, set CORS_ALLOWED_ORIGINS in your .env as a comma-separated list
-_cors_origins = os.getenv('CORS_ALLOWED_ORIGINS', 'http://localhost:5173')
+_cors_origins = os.getenv(
+    'CORS_ALLOWED_ORIGINS',
+    'http://localhost:5173,http://localhost:3000'
+)
 CORS_ALLOWED_ORIGINS = [origin.strip() for origin in _cors_origins.split(',') if origin.strip()]
+
+# Also allow all Vercel preview deployments and the production domain
+CORS_ALLOWED_ORIGIN_REGEXES = [
+    r'^https://.*\.vercel\.app$',
+    r'^https://.*\.nexaura.*$',
+]
+
+CORS_ALLOW_CREDENTIALS = True
 
 # Media and Static files settings
 MEDIA_URL = '/media/'
@@ -160,6 +171,15 @@ MEDIA_ROOT = BASE_DIR / 'media'
 
 STATIC_URL = 'static/'
 STATIC_ROOT = BASE_DIR / 'static'
+
+# Supabase Storage — used in production (Vercel) to persist uploaded files.
+# Falls back to local disk storage in development when SUPABASE_URL is not set.
+SUPABASE_URL = os.getenv('SUPABASE_URL', '')
+SUPABASE_SERVICE_KEY = os.getenv('SUPABASE_SERVICE_KEY', '')
+SUPABASE_BUCKET = os.getenv('SUPABASE_BUCKET', 'user-documents')
+
+if SUPABASE_URL and SUPABASE_SERVICE_KEY:
+    DEFAULT_FILE_STORAGE = 'core.supabase_storage.SupabaseStorage'
 
 # Password validation
 # https://docs.djangoproject.com/en/5.2/ref/settings/#auth-password-validators

@@ -93,7 +93,6 @@ const Dashboard: React.FC = () => {
   const [documents, setDocuments] = useState<any[]>([]);
   const [isUploading, setIsUploading] = useState(false);
 
-  const [payments, setPayments] = useState<any[]>([]);
 
   const fetchDashboardData = async () => {
     try {
@@ -103,8 +102,6 @@ const Dashboard: React.FC = () => {
       const userResp = await API.getMe();
       setProfile(userResp);
 
-      const payResp = await API.getPayments() as any;
-      setPayments(Array.isArray(payResp) ? payResp : []);
       
       const notifsResp = await API.getNotifications();
       setNotifications(Array.isArray(notifsResp) ? notifsResp : []);
@@ -207,9 +204,6 @@ const Dashboard: React.FC = () => {
       }, 0);
   };
 
-  const getActiveCount = () => {
-    return applications.filter(app => !['rejected', 'accepted'].includes(app.status)).length;
-  };
 
   const getJourneyStage = () => {
     if (applications.length === 0) {
@@ -317,28 +311,6 @@ const Dashboard: React.FC = () => {
       </div>
 
       <div className="dashboard-shell">
-        {/* Status Section */}
-        <section className="dashboard-section">
-          {payments.length > 0 && (
-            <div style={{ marginBottom: '32px', background: '#f0fdf4', border: '1px solid #bbf7d0', padding: '24px', borderRadius: '16px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                <h3 style={{ fontSize: '18px', fontWeight: '800', color: '#166534', margin: 0 }}>Approved Funding</h3>
-                <div style={{ fontSize: '24px', fontWeight: '900', color: '#166534' }}>
-                  ${payments.reduce((sum, p) => sum + parseFloat(p.amount), 0).toLocaleString()}
-                </div>
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '12px' }}>
-                {payments.map((pay, i) => (
-                  <div key={i} style={{ background: 'white', padding: '12px', borderRadius: '10px', border: '1px solid #dcfce7' }}>
-                    <div style={{ fontSize: '10px', fontWeight: '800', color: '#166534', textTransform: 'uppercase' }}>{pay.payment_type}</div>
-                    <div style={{ fontSize: '16px', fontWeight: '800', color: '#111', margin: '4px 0' }}>${parseFloat(pay.amount).toLocaleString()}</div>
-                    <div style={{ fontSize: '11px', color: '#22c55e' }}>Approved · {new Date(pay.date_issued).toLocaleDateString()}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </section>
 
         {/* Top Nav */}
         <div className="top-nav">
@@ -391,24 +363,6 @@ const Dashboard: React.FC = () => {
                       </div>
                     </div>
 
-                    <div className="kpi-row">
-                      <div className="kpi-card">
-                        <div className="kpi-val">${getApprovedTotal().toLocaleString()}</div>
-                        <div className="kpi-label">Authorized Total</div>
-                      </div>
-                      <div className="kpi-card">
-                        <div className="kpi-val">${getApprovedTotal().toLocaleString()}</div>
-                        <div className="kpi-label">Paid To Date</div>
-                      </div>
-                      <div className="kpi-card">
-                        <div className="kpi-val">$0</div>
-                        <div className="kpi-label">Remaining Balance</div>
-                      </div>
-                      <div className="kpi-card">
-                        <div className="kpi-val">{getActiveCount()}</div>
-                        <div className="kpi-label">Active Applications</div>
-                      </div>
-                    </div>
 
                     <div className="journey-progress-bar fade-in">
                       <div className="phase-info">
@@ -579,7 +533,9 @@ const Dashboard: React.FC = () => {
                   </div>
                   <div className="view-body">
                     <div className="kpi-row">
-                      <div className="kpi-card"><div className="kpi-val">${getApprovedTotal().toLocaleString()}</div><div className="kpi-label">Paid This Year</div></div>
+                      <div className="kpi-card"><div className="kpi-val">${getApprovedTotal().toLocaleString()}</div><div className="kpi-label">Authorized Total</div></div>
+                      <div className="kpi-card"><div className="kpi-val">${getApprovedTotal().toLocaleString()}</div><div className="kpi-label">Paid To Date</div></div>
+                      <div className="kpi-card"><div className="kpi-val">$0</div><div className="kpi-label">Remaining Balance</div></div>
                       <div className="kpi-card"><div className="kpi-val">$0</div><div className="kpi-label">Upcoming Scheduled</div></div>
                     </div>
                     <div className="sec-card">

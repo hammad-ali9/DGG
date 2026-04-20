@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import API from '../api/client';
 import '../styles/profile.css';
 
@@ -7,6 +8,7 @@ interface StudentProfileProps {
 }
 
 const StudentProfile: React.FC<StudentProfileProps> = ({ profile: initialProfile }) => {
+  const navigate = useNavigate();
   const [profile, setProfile] = useState<any>(initialProfile);
   const [activeModal, setActiveModal] = useState<string | null>(null);
   const [isUpdating, setIsUpdating] = useState(false);
@@ -33,19 +35,48 @@ const StudentProfile: React.FC<StudentProfileProps> = ({ profile: initialProfile
   }, []);
 
   const handleEditClick = (type: string) => {
-    setEditData({ ...profile });
+    const data = { ...profile };
+    // Pre-split the full name for the personal info modal to ensure smooth editing
+    if (type === 'personal') {
+      const parts = (data.full_name || '').split(' ');
+      data._firstName = parts[0] || '';
+      data._lastName = parts.slice(1).join(' ') || '';
+    }
+    setEditData(data);
     setActiveModal(type);
   };
+
+  // Reusable field updater — uses functional form to avoid stale closure on rapid keystrokes
+  const updateField = (field: string, value: any) =>
+    setEditData((prev: any) => ({ ...prev, [field]: value }));
 
   const closeModal = () => setActiveModal(null);
 
   const handleSave = async () => {
     setIsUpdating(true);
     try {
-      const updated = await API.updateMe(editData);
+      const dataToSave = { ...editData };
+
+      if (activeModal === 'personal') {
+        dataToSave.full_name = `${dataToSave._firstName || ''} ${dataToSave._lastName || ''}`.trim();
+      }
+
+      // Strip fields the backend marks read-only or that are internal to the frontend
+      const STRIP_FIELDS = [
+        '_firstName', '_lastName',   // temp split fields
+        'id', 'email',               // read-only on serializer
+        'role', 'date_joined',       // never writable by students
+        'profile_picture',           // handled separately
+        'is_suspended', 'suspended_until', 'suspension_reason', // staff-only
+        'guardian_consent_on_file',  // staff-only
+      ];
+      STRIP_FIELDS.forEach(f => delete dataToSave[f]);
+
+      const updated = await API.updateMe(dataToSave);
       setProfile(updated);
       setActiveModal(null);
     } catch (err: any) {
+      console.error('Save failed details:', err);
       alert(err.message || 'Update failed');
     } finally {
       setIsUpdating(false);
@@ -70,8 +101,10 @@ const StudentProfile: React.FC<StudentProfileProps> = ({ profile: initialProfile
       const docsResp = await API.getUserDocuments();
       setDocuments(Array.isArray(docsResp) ? docsResp : []);
     } catch (err: any) {
-      console.error('Upload failed:', err);
-      setUploadMessage('Upload failed: ' + (err.message || 'Unknown error'));
+      console.error('Upload failed details:', err);
+      const errorMsg = err.message || 'Unknown error';
+      const errorData = err.data ? JSON.stringify(err.data) : '';
+      setUploadMessage(`Upload failed: ${errorMsg} ${errorData}`);
     } finally {
       setIsUploading(false);
       setTimeout(() => setUploadMessage(null), 3000);
@@ -195,20 +228,20 @@ const StudentProfile: React.FC<StudentProfileProps> = ({ profile: initialProfile
               {profile.treaty_number && <span className="status-pill verified">✓ VERIFIED</span>}
             </div>
           </div>
-          {renderField('Primary Funding Source', profile.primary_stream || 'C-DFN PSSSP + DGGR', 2)}
+          {renderField('Primary Funding Source', profile.primary_stream, 2)}
           
           <div className="profile-field span-2">
             <div className="p-label">Unique Personal Identifier (UPi)</div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
               <div className="p-val st-extreme" style={{ fontFamily: 'monospace', letterSpacing: '2px' }}>
-                {showUPi ? (profile.upi || 'UPi-8841-X9') : '••••••••••••'}
+                {showUPi ? (profile.upi || 'NOT ISSUED') : '••••••••••••'}
               </div>
               <button className="section-edit-btn" style={{ padding: '2px 8px' }} onClick={() => setShowUPi(!showUPi)}>
                 {showUPi ? 'Hide' : 'Reveal'}
               </button>
             </div>
           </div>
-          {renderField('Replacement Financial Assistance', profile.financial_assistance_status || 'Not receiving SFA', 2)}
+          {renderField('Replacement Financial Assistance', profile.financial_assistance_status, 2)}
         </div>
       </div>
 
@@ -243,7 +276,7 @@ const StudentProfile: React.FC<StudentProfileProps> = ({ profile: initialProfile
               <span className="p-val muted" style={{ fontSize: '11px' }}>
                 {isDocVerified('cheque') ? 'File on record: void_cheque.pdf' : 'No file uploaded'}
               </span>
-              <button className="section-edit-btn" onClick={() => window.location.href='/dashboard/documents'}>Upload Void Cheque</button>
+              <button className="section-edit-btn" onClick={() => navigate('/dashboard/documents')}>Upload Void Cheque</button>
             </div>
           </div>
         </div>
@@ -268,15 +301,15 @@ const StudentProfile: React.FC<StudentProfileProps> = ({ profile: initialProfile
           <div className="profile-field">
             <div className="p-label">Enrollment Status</div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span className="p-val" style={{ color: '#166534' }}>{profile.enrollment_status || 'Full-Time'}</span>
+              <span className="p-val" style={{ color: '#166534' }}>{profile.enrollment_status || 'NOT SET'}</span>
               <span className="status-pill verified">✓ CONFIRMED</span>
             </div>
           </div>
-          {renderField('Course Load %', `${profile.course_load}%`, 1)}
-          {renderField('Program Type', profile.program_type || 'Post-Secondary (Degree)')}
+          {renderField('Course Load %', `${profile.course_load || 0}%`, 1)}
+          {renderField('Program Type', profile.program_type)}
           {renderField('Expected Graduation', profile.expected_graduation_date)}
-          {renderField('Period in program', profile.years_in_program || 'Year 2 of 4')}
-          {renderField('Institution Location', profile.institution_location || 'Calgary, AB')}
+          {renderField('Period in program', profile.years_in_program)}
+          {renderField('Institution Location', profile.institution_location)}
         </div>
       </div>
 
@@ -337,17 +370,17 @@ const StudentProfile: React.FC<StudentProfileProps> = ({ profile: initialProfile
             <h3>Personal Information</h3>
             <p className="modal-sub">Basic student identity and contact information.</p>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '24px' }}>
-              <div><label className="p-label">Legal First Name</label><input className="field-input" type="text" value={editData.full_name?.split(' ')[0] || ''} onChange={e => setEditData({...editData, full_name: `${e.target.value} ${editData.full_name?.split(' ').slice(1).join(' ') || ''}`})} /></div>
-              <div><label className="p-label">Legal Last Name</label><input className="field-input" type="text" value={editData.full_name?.split(' ').slice(1).join(' ') || ''} onChange={e => setEditData({...editData, full_name: `${editData.full_name?.split(' ')[0] || ''} ${e.target.value}`})} /></div>
-              <div><label className="p-label">Preferred Name</label><input className="field-input" type="text" value={editData.preferred_name || ''} onChange={e => setEditData({...editData, preferred_name: e.target.value})} /></div>
-              <div><label className="p-label">Date of Birth</label><input className="field-input" type="date" value={editData.dob || ''} onChange={e => setEditData({...editData, dob: e.target.value})} /></div>
-              <div><label className="p-label">Gender</label><input className="field-input" type="text" value={editData.gender || ''} onChange={e => setEditData({...editData, gender: e.target.value})} /></div>
-              <div><label className="p-label">Pronouns</label><input className="field-input" type="text" value={editData.pronouns || ''} onChange={e => setEditData({...editData, pronouns: e.target.value})} /></div>
-              <div><label className="p-label">Phone</label><input className="field-input" type="text" value={editData.phone || ''} onChange={e => setEditData({...editData, phone: e.target.value})} /></div>
-              <div><label className="p-label">Alt Phone</label><input className="field-input" type="text" value={editData.alternate_phone || ''} onChange={e => setEditData({...editData, alternate_phone: e.target.value})} /></div>
-              <div style={{ gridColumn: 'span 2' }}><label className="p-label">Mailing Address</label><textarea className="field-input" style={{ height: '60px' }} value={editData.mailing_address || ''} onChange={e => setEditData({...editData, mailing_address: e.target.value})} /></div>
-              <div><label className="p-label">Town / City</label><input className="field-input" type="text" value={editData.town_city || ''} onChange={e => setEditData({...editData, town_city: e.target.value})} /></div>
-              <div><label className="p-label">Postal Code</label><input className="field-input" type="text" value={editData.postal_code || ''} onChange={e => setEditData({...editData, postal_code: e.target.value})} /></div>
+              <div><label className="p-label">Legal First Name</label><input className="field-input" type="text" value={editData._firstName || ''} onChange={e => updateField('_firstName', e.target.value)} /></div>
+              <div><label className="p-label">Legal Last Name</label><input className="field-input" type="text" value={editData._lastName || ''} onChange={e => updateField('_lastName', e.target.value)} /></div>
+              <div><label className="p-label">Preferred Name</label><input className="field-input" type="text" value={editData.preferred_name || ''} onChange={e => updateField('preferred_name', e.target.value)} /></div>
+              <div><label className="p-label">Date of Birth</label><input className="field-input" type="date" value={editData.dob || ''} onChange={e => updateField('dob', e.target.value)} /></div>
+              <div><label className="p-label">Gender</label><input className="field-input" type="text" value={editData.gender || ''} onChange={e => updateField('gender', e.target.value)} /></div>
+              <div><label className="p-label">Pronouns</label><input className="field-input" type="text" value={editData.pronouns || ''} onChange={e => updateField('pronouns', e.target.value)} /></div>
+              <div><label className="p-label">Phone</label><input className="field-input" type="text" value={editData.phone || ''} onChange={e => updateField('phone', e.target.value)} /></div>
+              <div><label className="p-label">Alt Phone</label><input className="field-input" type="text" value={editData.alternate_phone || ''} onChange={e => updateField('alternate_phone', e.target.value)} /></div>
+              <div style={{ gridColumn: 'span 2' }}><label className="p-label">Mailing Address</label><textarea className="field-input" style={{ height: '60px' }} value={editData.mailing_address || ''} onChange={e => updateField('mailing_address', e.target.value)} /></div>
+              <div><label className="p-label">Town / City</label><input className="field-input" type="text" value={editData.town_city || ''} onChange={e => updateField('town_city', e.target.value)} /></div>
+              <div><label className="p-label">Postal Code</label><input className="field-input" type="text" value={editData.postal_code || ''} onChange={e => updateField('postal_code', e.target.value)} /></div>
             </div>
             <button className="btn-auth-primary" style={{ width: '100%' }} onClick={handleSave} disabled={isUpdating}>{isUpdating ? 'Saving...' : 'Save Changes'}</button>
           </div>
@@ -361,10 +394,10 @@ const StudentProfile: React.FC<StudentProfileProps> = ({ profile: initialProfile
             <h3>Banking & Payment Details</h3>
             <p className="modal-sub">Electronic funds transfer (EFT) routing information.</p>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '24px' }}>
-              <div style={{ gridColumn: 'span 2' }}><label className="p-label">Financial Institution</label><input className="field-input" type="text" value={editData.bank_name || ''} onChange={e => setEditData({...editData, bank_name: e.target.value})} /></div>
-              <div><label className="p-label">Transit # (5 digits)</label><input className="field-input" type="text" maxLength={5} value={editData.transit_number || ''} onChange={e => setEditData({...editData, transit_number: e.target.value})} /></div>
-              <div><label className="p-label">Inst # (3 digits)</label><input className="field-input" type="text" maxLength={3} value={editData.inst_number || ''} onChange={e => setEditData({...editData, inst_number: e.target.value})} /></div>
-              <div style={{ gridColumn: 'span 2' }}><label className="p-label">Account Number</label><input className="field-input" type="text" value={editData.account_number || ''} onChange={e => setEditData({...editData, account_number: e.target.value})} /></div>
+              <div style={{ gridColumn: 'span 2' }}><label className="p-label">Financial Institution</label><input className="field-input" type="text" value={editData.bank_name || ''} onChange={e => updateField('bank_name', e.target.value)} /></div>
+              <div><label className="p-label">Transit # (5 digits)</label><input className="field-input" type="text" maxLength={5} value={editData.transit_number || ''} onChange={e => updateField('transit_number', e.target.value)} /></div>
+              <div><label className="p-label">Inst # (3 digits)</label><input className="field-input" type="text" maxLength={3} value={editData.inst_number || ''} onChange={e => updateField('inst_number', e.target.value)} /></div>
+              <div style={{ gridColumn: 'span 2' }}><label className="p-label">Account Number</label><input className="field-input" type="text" value={editData.account_number || ''} onChange={e => updateField('account_number', e.target.value)} /></div>
             </div>
             <button className="btn-auth-primary" style={{ width: '100%' }} onClick={handleSave} disabled={isUpdating}>{isUpdating ? 'Saving Details...' : 'Save Banking Record'}</button>
           </div>
@@ -378,12 +411,15 @@ const StudentProfile: React.FC<StudentProfileProps> = ({ profile: initialProfile
             <h3>Enrollment Information</h3>
             <p className="modal-sub">Current academic placement and program details.</p>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '24px' }}>
-              <div style={{ gridColumn: 'span 2' }}><label className="p-label">Institution / Institute</label><input className="field-input" type="text" value={editData.institute || editData.institution_name || ''} onChange={e => setEditData({...editData, institute: e.target.value, institution_name: e.target.value})} /></div>
-              <div style={{ gridColumn: 'span 2' }}><label className="p-label">Program / Credential</label><input className="field-input" type="text" value={editData.program_credential || ''} onChange={e => setEditData({...editData, program_credential: e.target.value})} /></div>
-              <div><label className="p-label">Current Semester</label><input className="field-input" type="text" value={editData.current_semester || ''} onChange={e => setEditData({...editData, current_semester: e.target.value})} /></div>
-              <div><label className="p-label">Enrollment Status</label><input className="field-input" type="text" value={editData.enrollment_status || ''} onChange={e => setEditData({...editData, enrollment_status: e.target.value})} /></div>
-              <div><label className="p-label">Course Load %</label><input className="field-input" type="number" value={editData.course_load || 100} onChange={e => setEditData({...editData, course_load: parseInt(e.target.value)})} /></div>
-              <div><label className="p-label">Expected Graduation</label><input className="field-input" type="date" value={editData.expected_graduation_date || ''} onChange={e => setEditData({...editData, expected_graduation_date: e.target.value})} /></div>
+              <div style={{ gridColumn: 'span 2' }}><label className="p-label">Institution / Institute</label><input className="field-input" type="text" value={editData.institute || editData.institution_name || ''} onChange={e => setEditData((prev: any) => ({ ...prev, institute: e.target.value, institution_name: e.target.value }))} /></div>
+              <div style={{ gridColumn: 'span 2' }}><label className="p-label">Program / Credential</label><input className="field-input" type="text" value={editData.program_credential || ''} onChange={e => updateField('program_credential', e.target.value)} /></div>
+              <div><label className="p-label">Current Semester</label><input className="field-input" type="text" value={editData.current_semester || ''} onChange={e => updateField('current_semester', e.target.value)} /></div>
+              <div><label className="p-label">Enrollment Status</label><input className="field-input" type="text" value={editData.enrollment_status || ''} onChange={e => updateField('enrollment_status', e.target.value)} /></div>
+              <div><label className="p-label">Course Load %</label><input className="field-input" type="number" value={editData.course_load || 100} onChange={e => updateField('course_load', parseInt(e.target.value))} /></div>
+              <div><label className="p-label">Expected Graduation</label><input className="field-input" type="date" value={editData.expected_graduation_date || ''} onChange={e => updateField('expected_graduation_date', e.target.value)} /></div>
+              <div><label className="p-label">Program Type</label><input className="field-input" type="text" value={editData.program_type || ''} onChange={e => updateField('program_type', e.target.value)} /></div>
+              <div><label className="p-label">Period in Program</label><input className="field-input" type="text" value={editData.years_in_program || ''} onChange={e => updateField('years_in_program', e.target.value)} /></div>
+              <div style={{ gridColumn: 'span 2' }}><label className="p-label">Institution Location</label><input className="field-input" type="text" value={editData.institution_location || ''} onChange={e => updateField('institution_location', e.target.value)} /></div>
             </div>
             <button className="btn-auth-primary" style={{ width: '100%' }} onClick={handleSave} disabled={isUpdating}>{isUpdating ? 'Updating Record...' : 'Save Enrollment'}</button>
           </div>
@@ -397,10 +433,11 @@ const StudentProfile: React.FC<StudentProfileProps> = ({ profile: initialProfile
             <h3>Eligibility Identifiers</h3>
             <p className="modal-sub">Government identity and program eligibility markers.</p>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '24px' }}>
-              <div><label className="p-label">Beneficiary #</label><input className="field-input" type="text" value={editData.beneficiary_number || ''} onChange={e => setEditData({...editData, beneficiary_number: e.target.value})} /></div>
-              <div><label className="p-label">Treaty #</label><input className="field-input" type="text" value={editData.treaty_number || ''} onChange={e => setEditData({...editData, treaty_number: e.target.value})} /></div>
-              <div><label className="p-label">UPi</label><input className="field-input" type="text" value={editData.upi || ''} onChange={e => setEditData({...editData, upi: e.target.value})} /></div>
-              <div><label className="p-label">Financial Asst. Status</label><input className="field-input" type="text" value={editData.financial_assistance_status || ''} onChange={e => setEditData({...editData, financial_assistance_status: e.target.value})} /></div>
+              <div><label className="p-label">Beneficiary #</label><input className="field-input" type="text" value={editData.beneficiary_number || ''} onChange={e => updateField('beneficiary_number', e.target.value)} /></div>
+              <div><label className="p-label">Treaty #</label><input className="field-input" type="text" value={editData.treaty_number || ''} onChange={e => updateField('treaty_number', e.target.value)} /></div>
+              <div><label className="p-label">UPi</label><input className="field-input" type="text" value={editData.upi || ''} onChange={e => updateField('upi', e.target.value)} /></div>
+              <div><label className="p-label">Primary Funding Source</label><input className="field-input" type="text" value={editData.primary_stream || ''} onChange={e => updateField('primary_stream', e.target.value)} /></div>
+              <div style={{ gridColumn: 'span 2' }}><label className="p-label">Financial Asst. Status</label><input className="field-input" type="text" value={editData.financial_assistance_status || ''} onChange={e => updateField('financial_assistance_status', e.target.value)} /></div>
             </div>
             <button className="btn-auth-primary" style={{ width: '100%' }} onClick={handleSave} disabled={isUpdating}>{isUpdating ? 'Saving...' : 'Save Identifiers'}</button>
           </div>

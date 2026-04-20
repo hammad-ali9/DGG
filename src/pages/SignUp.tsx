@@ -322,11 +322,12 @@ const SignUp: React.FC = () => {
                     <input 
                       className="field-input" 
                       type="text" 
-                      placeholder="DD / MM / YYYY" 
+                      placeholder="YYYY-MM-DD" 
                       value={formData.dob} 
                       onChange={e => updateFormData('dob', e.target.value)} 
                     />
                   </div>
+
                   <div className="field-group">
                     <label className="field-label">DGG Beneficiary # <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0, fontSize: '9px', color: '#999' }}>(Optional)</span></label>
                     <input className="field-input" type="text" placeholder="e.g. DGG-00412" value={formData.beneficiaryNo} onChange={e => updateFormData('beneficiaryNo', e.target.value)} />

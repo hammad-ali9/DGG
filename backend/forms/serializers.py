@@ -35,7 +35,8 @@ class FormSubmissionSerializer(serializers.ModelSerializer):
             'id', 'form', 'form_title', 'student', 'student_name', 'student_details',
             'submitted_at', 'status', 'amount', 'answers', 'notes',
             'reviewed_at', 'reviewed_by', 'forwarded_at', 'forwarded_by',
-            'decided_at', 'decided_by', 'decision_reason'
+            'decided_at', 'decided_by', 'decision_reason', 'decision_letter_text',
+            'is_late', 'overpayment_amount', 'escalation_level', 'program_stream'
         )
         read_only_fields = ('student', 'submitted_at')
 
